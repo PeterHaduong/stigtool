@@ -29,6 +29,14 @@ You do not need git, email or a zip. The whole program fits in one self-installi
    from STIG Viewer 2.x and a blank IOS-XE Switch NDM checklist from STIG Viewer 3 into `tests/fixtures/`, as
    `ios-xe-switch-rtr.ckl` and `ios-xe-switch-ndm.cklb`. Without them, the checklist tests are skipped.
 
+**Your rules travel with the program.** `rules/stigtool_rules.json` is the rule library: every rule and the
+manual-only list, with author names and edit history removed. It is included in the bundle and the repo.
+- On a **new install with no rules**, the tool loads it automatically on first start.
+- Import your checklists on tab 1 and the rules attach to them by STIG and Vuln ID.
+- Later, use **Export rules...** / **Import rules...** on tab 2 to move rules between sites or teams. Import only
+  adds rules that do not exist yet; it never overwrites.
+- Refresh the shipped file before making a new bundle: **Export rules...** to `rules/stigtool_rules.json`.
+
 **Updating later:** make a new bundle, put it *inside* the existing `STIGTOOL` folder and run it. Program files are
 replaced; `data/` (rules, groups, imported checklists, runs) is never touched.
 

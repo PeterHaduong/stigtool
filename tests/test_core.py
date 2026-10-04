@@ -349,6 +349,36 @@ class TeamStoreTests(StoreCase):
         self.assertEqual(s["manual_controls"], [f"{NDM}|V-1"])
         self.assertEqual(s["known_devices"], {"SW2": "2.2.2.2"})
 
+    def test_rules_export_import_round_trip(self):
+        rule = {"id": "R-EXP1", "stig_id": NDM, "vuln_id": "V-1", "name": "x", "commands": ["show run"],
+                "history": [{"old": 1}], "review_log": [{"by": "someone"}],
+                "tests": [{"name": "t", "expected": "open", "outputs": {"show run": ""}, "saved_by": "someone"}]}
+        store.save_rule(rule, check=False)
+        store.set_manual(f"{NDM}|V-2", True)
+        out = self.tmp / "export.json"
+        self.assertEqual(store.export_rules(out), 1)
+        text = out.read_text(encoding="utf-8")
+        for secret in ("someone", store.current_user(), "history", "saved_by", "_rev"):
+            if secret:
+                self.assertNotIn(f'"{secret}"' if secret in ("history", "saved_by", "_rev") else secret, text)
+        self.assertTrue(text.isascii())
+        # into a fresh project: added; second import skips existing
+        other = Path(tempfile.mkdtemp())
+        try:
+            store.use_root(other)
+            self.assertEqual(store.import_rules(out), {"added": 1, "skipped": 0, "manual_added": 1})
+            self.assertEqual(store.import_rules(out)["skipped"], 1)
+            got = store.load_rules()
+            self.assertEqual(got["rules"][0]["commands"], ["show run"])
+            self.assertEqual(got["manual_controls"], [f"{NDM}|V-2"])
+        finally:
+            store.use_root(self.tmp)
+            shutil.rmtree(other, ignore_errors=True)
+        with self.assertRaises(ValueError):
+            bad = self.tmp / "bad.json"
+            bad.write_text("{}", encoding="utf-8")
+            store.import_rules(bad)
+
     def test_locks(self):
         self.assertIsNone(store.acquire_lock("rule", "R-1"))
         store.save_json(store.paths.locks / "rule_R-1.lock",

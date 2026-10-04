@@ -252,6 +252,70 @@ def mark_rule_reviewed(rule_id, check_hash, release, note="Reviewed after STIG u
     return modify_rule(rule_id, change)
 
 
+RULES_EXPORT_FORMAT = "stigtool-rules"
+# Fields that identify people or only make sense on this machine; never exported.
+PERSONAL_FIELDS = ("created_by", "saved_by", "updated_by", "_rev", "history", "review_log")
+
+
+def clean_rule(rule):
+    """A copy of a rule without author names, edit history or local revision counters."""
+    out = {k: copy.deepcopy(v) for k, v in rule.items() if k not in PERSONAL_FIELDS}
+    for t in out.get("tests", []):
+        t.pop("saved_by", None)
+    return out
+
+
+def bundled_rules_path():
+    """The rules file shipped with the program (rules/stigtool_rules.json next to main.py)."""
+    return paths.root / "rules" / "stigtool_rules.json"
+
+
+def export_rules(path, rules=None):
+    """Write every rule (cleaned) plus the manual-only list to one JSON file. Returns the rule count."""
+    db = load_rules()
+    chosen = rules if rules is not None else db["rules"]
+    data = {"format": RULES_EXPORT_FORMAT, "version": 1, "exported_at": now(),
+            "manual_controls": sorted(db.get("manual_controls", [])),
+            "rules": [clean_rule(r) for r in sorted(chosen, key=lambda r: (r["stig_id"], r["vuln_id"], r["id"]))]}
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    # One rule per line: still valid JSON, diff-friendly, and safe to copy / paste or split into parts.
+    head = {k: v for k, v in data.items() if k != "rules"}
+    lines = [json.dumps(r, ensure_ascii=True, separators=(",", ":")) for r in data["rules"]]
+    text = json.dumps(head, ensure_ascii=True, separators=(",", ":"))[:-1] + ',"rules":[\n' + ",\n".join(lines) + "\n]}\n"
+    json.loads(text)  # never write a file that would not load back
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
+        f.write(text)
+    return len(data["rules"])
+
+
+def import_rules(path):
+    """Add rules from an export file. Rules whose ID already exists here are left alone.
+
+    Returns {"added", "skipped", "manual_added"}.
+    """
+    data = load_json(path, None)
+    if not isinstance(data, dict) or data.get("format") != RULES_EXPORT_FORMAT:
+        raise ValueError(f"{Path(path).name} is not a STIGTOOL rules export")
+    report = {"added": 0, "skipped": 0, "manual_added": 0}
+    for rule in data.get("rules", []):
+        if not rule.get("id") or rule_path(rule["id"]).exists():
+            report["skipped"] += 1
+            continue
+        rule = clean_rule(rule)
+        rule.setdefault("history", [])
+        rule["imported_at"] = now()
+        save_rule(rule, check=False)
+        report["added"] += 1
+    incoming = set(data.get("manual_controls", []))
+
+    def change(s):
+        before = set(s["manual_controls"])
+        report["manual_added"] = len(incoming - before)
+        s["manual_controls"] = sorted(before | incoming)
+    update_settings(change)
+    return report
+
+
 def load_groups():
     groups = [load_json(p, None) for p in sorted(paths.groups.glob("*.json"))]
     s = load_settings()

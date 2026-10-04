@@ -16,6 +16,8 @@ ROOT = Path(__file__).resolve().parent
 FILES = ["main.py", "make_bundle.py", "README.md", "src/assess.py", "src/checklist.py", "src/collect.py",
          "src/drafts.py", "src/gui.py", "src/harden.py", "src/rules.py", "src/store.py", "tests/test_core.py", "tests/test_drafts.py",
          "tests/platform_samples.py"]
+# Optional files: shipped when present (the exported rule library).
+OPTIONAL = ["rules/stigtool_rules.json"]
 
 INSTALLER = r'''"""STIGTOOL installer - part {part} of {parts} (bundle {bundle}).
 
@@ -113,7 +115,7 @@ def norm(text):
 
 def build(max_kb=None):
     entries = []
-    for rel in FILES:
+    for rel in FILES + [o for o in OPTIONAL if (ROOT / o).exists()]:
         text = norm((ROOT / rel).read_text(encoding="utf-8"))
         if not text.isascii():
             sys.exit(f"{rel} contains non-ASCII characters - replace them so copy/paste is safe.")
@@ -159,7 +161,7 @@ def build(max_kb=None):
         path = out_dir / name
         path.write_text("\n".join(body) + "\n", encoding="utf-8", newline="\n")
         written.append(path)
-    print(f"Bundle {bundle}: {len(FILES)} files in {len(written)} part(s):")
+    print(f"Bundle {bundle}: {len(entries)} files in {len(written)} part(s):")
     for p in written:
         print(f"  {p}  ({p.stat().st_size // 1024} KB)")
 

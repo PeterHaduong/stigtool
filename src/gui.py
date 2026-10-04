@@ -159,6 +159,21 @@ class App(tk.Tk):
         if runs:
             self.set_run(store.load_run(runs[0]), runs[0].stat().st_mtime)
         self.refresh_all()
+        self.after(300, self.first_start_rules)
+
+    def first_start_rules(self):
+        """A fresh install with no rules picks up the rules file shipped with the program."""
+        bundled = store.bundled_rules_path()
+        if self.rules_db["rules"] or not bundled.exists():
+            return
+        try:
+            rep = store.import_rules(bundled)
+        except (ValueError, OSError) as e:
+            return messagebox.showwarning("Rules", f"Could not load the shipped rules file: {e}")
+        self.reload()
+        messagebox.showinfo("Rules loaded", f"This looks like a new install, so the {rep['added']} rules shipped in "
+                                            f"{bundled.name} were loaded.\n\nImport your checklists on tab 1 - the "
+                                            "rules attach to them automatically by STIG and Vuln ID.")
 
     # -- shared data
     def load_data(self):
@@ -624,6 +639,8 @@ class QueueTab(ttk.Frame):
         for var in (self.stig_var, self.state_var, self.search_var):
             var.trace_add("write", lambda *a: self.refresh())
         ttk.Button(filt, text="Create starter drafts...", command=self.starter_drafts).pack(side="right")
+        ttk.Button(filt, text="Import rules...", command=self.import_rules).pack(side="right", padx=4)
+        ttk.Button(filt, text="Export rules...", command=self.export_rules).pack(side="right")
         self.progress = ttk.Label(self, text="", foreground="#333", wraplength=1500, justify="left")
         self.progress.pack(fill="x", padx=8, pady=(4, 0))
 
@@ -789,6 +806,29 @@ class QueueTab(ttk.Frame):
         if messagebox.askyesno("Delete draft", f"Delete draft {r['id']}?"):
             store.delete_rule(r["id"])
             self.after_save()
+
+    def export_rules(self):
+        path = filedialog.asksaveasfilename(
+            title="Export rules", defaultextension=".json", initialdir=str(store.paths.output),
+            initialfile=f"stigtool_rules_{store.stamp()}.json", filetypes=[("STIGTOOL rules", "*.json")])
+        if path:
+            n = store.export_rules(path)
+            messagebox.showinfo("Export rules", f"{n} rules (and the manual-only list) written to\n{path}\n\n"
+                                                "Author names and edit history are left out.")
+
+    def import_rules(self):
+        path = filedialog.askopenfilename(title="Import rules", filetypes=[("STIGTOOL rules", "*.json")],
+                                          initialdir=str(store.bundled_rules_path().parent))
+        if not path:
+            return
+        try:
+            rep = store.import_rules(path)
+        except ValueError as e:
+            return messagebox.showerror("Import rules", str(e))
+        self.after_save()
+        messagebox.showinfo("Import rules", f"Added {rep['added']} rule(s). Skipped {rep['skipped']} that already "
+                                            f"exist here (not overwritten). {rep['manual_added']} control(s) newly "
+                                            "marked Manual only.")
 
     def starter_drafts(self):
         stig_id = self.stig_map.get(self.stig_var.get())
