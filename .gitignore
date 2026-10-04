@@ -1,0 +1,11 @@
+# Local / sensitive - never commit
+_resources/
+tests/fixtures/
+data/
+input/
+output/
+logs/
+shared_data_path.txt
+__pycache__/
+*.pyc
+github_upload/
