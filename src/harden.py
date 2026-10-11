@@ -15,7 +15,14 @@ Inside fix commands:
                            rule editor). Lets one rule add a command where it is missing (e.g. trust on uplinks)
                            and remove it where it must not be (e.g. trust on access ports).
   ! text                   a comment, copied into the script
+
+Fix commands are reviewed separately from the rule check (Fix commands tab): rule tests prove the check works,
+not that the fix is right. Only reviewed fixes go into scripts. The review covers the fix AND the rule logic it
+depends on ({each failing section of condition 2} points at a condition by number), so changing either sends the
+fix back for review.
 """
+import hashlib
+import json
 import re
 
 import assess
@@ -65,7 +72,7 @@ FIX_IOSXE = {
     "CISC-ND-000140": F(high=["ip access-list extended MGMT_NET", " permit ip <MGMT_SUBNET> <MGMT_WILDCARD> any",
                               " deny ip any any log-input", "line vty 0 4", " access-class MGMT_NET in"]),
     "CISC-ND-000150": F(high=["login block-for 900 attempts 3 within 120"]),
-    "CISC-ND-000160": F(low=["banner login ^C"] + DOD_BANNER.splitlines() + ["^C"]),
+    "CISC-ND-000160": F(low=["banner login ^C", "<DOD_BANNER>", "^C"]),
     "CISC-ND-000210": F(low=["logging userinfo"] + ARCHIVE),
     "CISC-ND-000280": F(low=["service timestamps log datetime msec localtime show-timezone"]),
     "CISC-ND-000290": F(high=ACL_LOG),
@@ -235,7 +242,7 @@ FIX_NXOS = {
                               "  20 deny ip any any log", "interface mgmt0", "  ip access-group MGMT_NET in",
                               "line vty", "  access-class MGMT_NET in"]),
     "CISC-ND-000150": F(high=["ssh login-attempts 3"]),
-    "CISC-ND-000160": F(low=["banner motd ^"] + DOD_BANNER.splitlines() + ["^"]),
+    "CISC-ND-000160": F(low=["banner motd ^", "<DOD_BANNER>", "^"]),
     "CISC-ND-000290": F(low=["logging ip access-list cache entries 8000"],
                         high=each("! add 'log' to every deny statement in this ACL")),
     "CISC-ND-000470": F(high=["no feature telnet"]),
@@ -455,9 +462,106 @@ def has_fix(rule):
     return bool((fix.get("low") or "").strip() or (fix.get("high") or "").strip())
 
 
-def _script(impact, title, items, source):
-    """items: [(heading, [command lines])] -> full script text, or None if empty."""
+FIX_STATUS = {"none": "No fix commands", "unreviewed": "Not reviewed", "stale": "Rule changed - re-check",
+              "reviewed": "Reviewed"}
+
+
+def fix_hash(rule):
+    """Fingerprint of the fix commands and the rule logic they depend on."""
+    fix = rule.get("fix") or {}
+    basis = {"fix": {k: (fix.get(k) or "").strip() for k in ("low", "high")},
+             **{k: rule.get(k) for k in ("commands", "pass_logic", "na_enabled", "na_logic")}}
+    return hashlib.sha256(json.dumps(basis, sort_keys=True).encode("utf-8")).hexdigest()[:16]
+
+
+def fix_status(rule):
+    """'none', 'unreviewed', 'stale' (fix or rule logic changed since the review) or 'reviewed'."""
+    if not has_fix(rule):
+        return "none"
+    review = rule.get("fix_review")
+    if not review:
+        return "unreviewed"
+    return "reviewed" if review.get("hash") == fix_hash(rule) else "stale"
+
+
+def save_fix(rule_id, fix, reviewed):
+    """Store a rule's fix commands (kept in its history) and optionally mark them reviewed. Returns the rule."""
+    def change(r):
+        if (r.get("fix") or {}) != fix:
+            r.setdefault("history", []).append({k: v for k, v in r.items() if k not in ("history", "review_log")})
+            r["fix"] = fix
+        if reviewed:
+            r["fix_review"] = {"by": store.current_user(), "at": store.now(), "hash": fix_hash(r)}
+    return store.modify_rule(rule_id, change)
+
+
+# ---------------------------------------------------------------- team site values
+
+# Site values (Team settings > Site values): long or site-specific text written ONCE and referred to by name in fix
+# commands, e.g. <DOD_BANNER> or <NTP_SERVER_1>. Scripts fill them in; any that are not set stay as <NAME> and are
+# listed under EDIT BEFORE USE. The DoD banner has a built-in default.
+DEFAULT_SITE_VALUES = {"DOD_BANNER": DOD_BANNER}
+
+
+def site_values(settings):
+    """name -> text for every site value that has one (team settings over the built-in defaults)."""
+    values = {**DEFAULT_SITE_VALUES, **((settings or {}).get("site_values") or {})}
+    return {k: v for k, v in values.items() if (v or "").strip()}
+
+
+def fill_values(lines, values):
+    """Replace <NAME> with its site value. A multi-line value (a banner) becomes several lines."""
+    out = []
+    for line in lines:
+        for name, value in (values or {}).items():
+            line = line.replace(f"<{name}>", value.strip("\n"))
+        out += line.split("\n")
+    return out
+
+
+def placeholders_in(text):
+    return [m[1:-1] for m in PLACEHOLDER_RE.findall(text or "")]
+
+
+def compact_text(text):
+    """Swap a pasted copy of the full DoD banner for <DOD_BANNER>, so fix commands stay short."""
+    lines, banner = (text or "").split("\n"), [x.strip() for x in DOD_BANNER.splitlines()]
+    for i in range(len(lines) - len(banner) + 1):
+        if [x.strip() for x in lines[i:i + len(banner)]] == banner:
+            return "\n".join(lines[:i] + ["<DOD_BANNER>"] + lines[i + len(banner):])
+    return text
+
+
+def compact_stored_fixes(rules):
+    """One-time tidy of saved rules: the full DoD banner in fix commands becomes <DOD_BANNER>. A reviewed fix stays
+    reviewed (the script it produces is the same). Returns how many rules changed."""
+    changed = 0
+    for r in rules:
+        fix = r.get("fix") or {}
+        if all(compact_text(v or "") == (v or "") for v in fix.values()):
+            continue
+
+        def change(d):
+            was_reviewed = fix_status(d) == "reviewed"
+            d["fix"] = {k: compact_text(v or "") for k, v in (d.get("fix") or {}).items()}
+            if was_reviewed:
+                d["fix_review"]["hash"] = fix_hash(d)
+        store.modify_rule(r["id"], change)
+        changed += 1
+    return changed
+
+
+def _not_reviewed_note(skipped):
+    return (["!", "! NOT INCLUDED - these checks have fix commands that are not reviewed yet",
+             "! (review them on the Fix commands tab, Set up mode):"] + [f"!   {h}" for h in skipped]
+            if skipped else [])
+
+
+def _script(impact, title, items, source, skipped=(), values=None):
+    """items: [(heading, [command lines])] -> full script text, or None if empty. values: site values to fill in."""
     items = [(h, cmds) for h, cmds in items if any(c.strip() for c in cmds)]
+    used = sorted({name for _, cmds in items for c in cmds for name in placeholders_in(c) if name in (values or {})})
+    items = [(h, fill_values(cmds, values)) for h, cmds in items]
     if not items:
         return None, 0
     body, seen = [], {}
@@ -471,10 +575,13 @@ def _script(impact, title, items, source):
     placeholders = sorted({p for _, cmds in items for c in cmds for p in PLACEHOLDER_RE.findall(c)})
     head = [f"! STIGTOOL hardening script - {IMPACT[impact]}", f"! {title}",
             f"! Generated {store.now()} by {store.current_user()}", f"! Source: {source}",
-            f"! Controls: {len(items)}"] + HEADER_WARNING[impact]
+            f"! Checks: {len(items)}"] + HEADER_WARNING[impact]
     if placeholders:
         head += ["!", "! EDIT BEFORE USE - replace every one of these values:"]
         head += [f"!   {p}" for p in placeholders]
+    if used:
+        head += ["!", "! Filled in from the team's site values: " + ", ".join(used)]
+    head += _not_reviewed_note(skipped)
     text = "\n".join(head + ["!", "configure terminal"] + body +
                      ["!", "end", "! Verify the device, then save: copy running-config startup-config", ""])
     return text, len(items)
@@ -491,14 +598,20 @@ def _write(folder, name, text):
     return path
 
 
-def generate_baseline(group, rules_db, index, include_drafts=True):
-    """Two scripts for the group covering every control whose rule has fix commands."""
-    items = {"low": [], "high": []}
+def generate_baseline(group, rules_db, index, include_drafts=True, values=None):
+    """Two scripts for the group covering every control whose rule has reviewed fix commands.
+
+    Returns (folder, [(path, controls)], [headings skipped because the fix is not reviewed]).
+    """
+    items, skipped = {"low": [], "high": []}, []
     for stig_id, control, rule in assess.group_plan(group, rules_db, index):
         if rule is None and include_drafts:
             rule = next((r for r in assess.rules_for_control(rules_db, stig_id, control["vuln_id"])
                          if r.get("state") == "draft" and has_fix(r)), None)
         if not rule or not has_fix(rule):
+            continue
+        if fix_status(rule) != "reviewed":
+            skipped.append(_heading(index[stig_id]["short"], control))
             continue
         placeholder = _placeholder_header(rule)
         for impact in ("low", "high"):
@@ -510,22 +623,31 @@ def generate_baseline(group, rules_db, index, include_drafts=True):
     written = []
     for impact, suffix in (("low", "LOW_IMPACT"), ("high", "IMPACTFUL")):
         text, n = _script(impact, f"Group {group['id']} - baseline for every device in the group",
-                          items[impact], "baseline (every control with fix commands"
-                          + (", including draft rules)" if include_drafts else ", active rules only)"))
+                          items[impact], "baseline (every check with reviewed fix commands"
+                          + (", including draft rules)" if include_drafts else ", active rules only)"), skipped,
+                          values)
         if text:
             written.append((_write(folder, f"{group['id']}_{suffix}.txt", text), n))
-    return folder, written
+    return folder, written, skipped
 
 
-def generate_from_run(run, group_id, rules_db):
-    """Per-device scripts with only the controls that are Open on that device in the assessment run."""
+def generate_from_run(run, group_id, rules_db, values=None):
+    """Per-device scripts with only the controls that are Open on that device in the assessment run.
+
+    Returns (folder, [(path, controls)], [headings skipped because the fix is not reviewed]).
+    """
     results = run["results"][group_id]
     per_device = {h: {"low": [], "high": []} for h in results["devices"]}
     rules_by_id = {r["id"]: r for r in rules_db["rules"]}
+    skipped = []
     for c in results["controls"].values():
         rule = rules_by_id.get(c["rule_id"])
         if not rule or not has_fix(rule) or assess.is_expected_open(c) or c.get("final") in (
                 "not_applicable", "not_a_finding"):
+            continue
+        if fix_status(rule) != "reviewed":
+            if any(r["status"] == "open" for r in c["per_device"].values()):
+                skipped.append(_heading(c["family"], c))
             continue
         for host, r in c["per_device"].items():
             if r["status"] != "open":
@@ -543,7 +665,7 @@ def generate_from_run(run, group_id, rules_db):
     for host, items in per_device.items():
         for impact, suffix in (("low", "LOW_IMPACT"), ("high", "IMPACTFUL")):
             text, n = _script(impact, f"Device {host} (group {group_id})", items[impact],
-                              f"assessment run {run['id']} - only controls Open on this device")
+                              f"assessment run {run['id']} - only checks Open on this device", skipped, values)
             if text:
                 written.append((_write(folder, f"{host}_{suffix}.txt", text), n))
-    return folder, written
+    return folder, written, skipped

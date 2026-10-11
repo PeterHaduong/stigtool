@@ -103,12 +103,66 @@ def current_host():
         return "unknown"
 
 
+def load_my_view():
+    """This PC's own screen preferences (e.g. which mode the tool opens in). Never shared."""
+    try:
+        return load_json(paths.logs / "my_view.json", {})
+    except (OSError, ValueError):
+        return {}
+
+
+def save_my_view(change):
+    view = load_my_view()
+    view.update(change)
+    try:
+        save_json(paths.logs / "my_view.json", view)
+    except OSError:
+        pass
+
+
 def load_json(path, default):
     path = Path(path)
     if not path.exists():
         return copy.deepcopy(default)
     with open(path, encoding="utf-8") as f:
         return json.load(f)
+
+
+# Reading shared data over a network share is slow per file opened. Records are cached by (modified time, size):
+# a refresh lists each folder once and only opens files that are new or changed since the last read.
+_file_cache = {}
+
+
+def _cached(path, stat_result):
+    key = (stat_result.st_mtime_ns, stat_result.st_size)
+    hit = _file_cache.get(str(path))
+    if not hit or hit[0] != key:
+        try:
+            data = load_json(path, None)
+        except (OSError, ValueError):
+            data = None  # being replaced by a teammate right now; the next refresh reads it
+        hit = (key, data)
+        _file_cache[str(path)] = hit
+    return copy.deepcopy(hit[1])
+
+
+def read_json_cached(path):
+    """One JSON file, re-read only when it changed."""
+    try:
+        return _cached(path, os.stat(path))
+    except FileNotFoundError:
+        return None
+
+
+def read_folder_cached(folder):
+    """Every *.json record in a folder, sorted by file name, re-reading only files that changed."""
+    try:
+        entries = sorted((e for e in os.scandir(folder) if e.name.endswith(".json") and e.is_file()),
+                         key=lambda e: e.name)
+    except FileNotFoundError:
+        return []
+    records = (_cached(e.path, e.stat()) for e in entries)  # on Windows the listing carries the file times
+    return [r for r in records if r]
 
 
 def save_json(path, data):
@@ -143,11 +197,11 @@ DEFAULT_PLACEMENT = {"not_a_finding": "comments", "not_applicable": "comments", 
 # Interface-description keywords that mark port roles (comma-separated alternatives).
 DEFAULT_PORT_ROLES = {"uplink": "UPLINK", "downlink": "DOWNLINK", "access": "ACCESS, UNTRUSTED"}
 DEFAULT_SETTINGS = {"output_format": "ckl", "manual_controls": [], "device_overrides": {}, "known_devices": {},
-                    "text_placement": DEFAULT_PLACEMENT, "port_roles": DEFAULT_PORT_ROLES}
+                    "text_placement": DEFAULT_PLACEMENT, "port_roles": DEFAULT_PORT_ROLES, "site_values": {}}
 
 
 def load_settings():
-    s = {**copy.deepcopy(DEFAULT_SETTINGS), **load_json(paths.settings_file, {})}
+    s = {**copy.deepcopy(DEFAULT_SETTINGS), **(read_json_cached(paths.settings_file) or {})}
     s["text_placement"] = {**DEFAULT_PLACEMENT, **(s.get("text_placement") or {})}
     s["port_roles"] = {**DEFAULT_PORT_ROLES, **(s.get("port_roles") or {})}
     return s
@@ -174,11 +228,28 @@ def set_manual(key, on):
 
 
 def set_override(host, group_id):
+    set_overrides([host], group_id)
+
+
+def set_overrides(hosts, group_id):
+    """Put devices in a group by hand (group_id None = back to the hostname patterns), in one settings write."""
     def change(s):
-        if group_id:
-            s["device_overrides"][host.upper()] = group_id
+        for host in hosts:
+            if group_id:
+                s["device_overrides"][host.upper()] = group_id
+            else:
+                s["device_overrides"].pop(host.upper(), None)
+    update_settings(change)
+
+
+def set_site_value(name, value):
+    """Team site value used in fix commands as <NAME> (None removes it)."""
+    def change(s):
+        values = s.setdefault("site_values", {})
+        if value is None:
+            values.pop(name, None)
         else:
-            s["device_overrides"].pop(host.upper(), None)
+            values[name] = value
     update_settings(change)
 
 
@@ -222,8 +293,7 @@ def group_path(group_id):
 
 
 def load_rules():
-    rules = [load_json(p, None) for p in sorted(paths.rules.glob("*.json"))]
-    return {"rules": [r for r in rules if r], "manual_controls": load_settings()["manual_controls"]}
+    return {"rules": read_folder_cached(paths.rules), "manual_controls": load_settings()["manual_controls"]}
 
 
 def new_rule_id():
@@ -245,10 +315,40 @@ def delete_rule(rule_id):
     rule_path(rule_id).unlink(missing_ok=True)
 
 
-def mark_rule_reviewed(rule_id, check_hash, release, note="Reviewed after STIG update - still valid"):
+# A rule belongs to one control (stig_id / vuln_id) and can be shared with more controls that check the same thing
+# (e.g. the same requirement in the Switch and Router NDM STIGs): rule["links"] = [{stig_id, vuln_id, check_hash}].
+# Each control keeps its own check_hash, so a DISA change to one control flags only that control.
+
+def rule_targets(rule):
+    """Every control the rule answers: its own control first, then the ones it is shared with."""
+    own = {"stig_id": rule.get("stig_id"), "vuln_id": rule.get("vuln_id"), "check_hash": rule.get("check_hash")}
+    return [own] + list(rule.get("links") or [])
+
+
+def rule_applies(rule, stig_id, vuln_id):
+    return any(t["stig_id"] == stig_id and t["vuln_id"] == vuln_id for t in rule_targets(rule))
+
+
+def rule_check_hash(rule, stig_id, vuln_id):
+    """The control check text this rule was last written / reviewed against, for one of its controls."""
+    return next((t.get("check_hash") for t in rule_targets(rule)
+                 if t["stig_id"] == stig_id and t["vuln_id"] == vuln_id), None)
+
+
+def set_rule_check_hash(rule, stig_id, vuln_id, check_hash):
+    if rule.get("stig_id") == stig_id and rule.get("vuln_id") == vuln_id:
+        rule["check_hash"] = check_hash
+    for t in rule.get("links") or []:
+        if t["stig_id"] == stig_id and t["vuln_id"] == vuln_id:
+            t["check_hash"] = check_hash
+
+
+def mark_rule_reviewed(rule_id, stig_id, vuln_id, check_hash, release,
+                       note="Reviewed after STIG update - still valid"):
     def change(r):
-        r["check_hash"] = check_hash
-        r.setdefault("review_log", []).append({"at": now(), "by": current_user(), "release": release, "note": note})
+        set_rule_check_hash(r, stig_id, vuln_id, check_hash)
+        r.setdefault("review_log", []).append({"at": now(), "by": current_user(), "release": release,
+                                               "vuln_id": vuln_id, "note": note})
     return modify_rule(rule_id, change)
 
 
@@ -262,6 +362,7 @@ def clean_rule(rule):
     out = {k: copy.deepcopy(v) for k, v in rule.items() if k not in PERSONAL_FIELDS}
     for t in out.get("tests", []):
         t.pop("saved_by", None)
+    (out.get("fix_review") or {}).pop("by", None)
     return out
 
 
@@ -317,9 +418,9 @@ def import_rules(path):
 
 
 def load_groups():
-    groups = [load_json(p, None) for p in sorted(paths.groups.glob("*.json"))]
+    groups = read_folder_cached(paths.groups)
     s = load_settings()
-    return {"groups": [g for g in groups if g], "device_overrides": s["device_overrides"],
+    return {"groups": groups, "device_overrides": s["device_overrides"],
             "known_devices": s["known_devices"]}
 
 
@@ -397,10 +498,14 @@ _catalog_cache = {}
 def list_catalogs():
     """All imported templates, oldest import first. Cached by file time (catalogs never change)."""
     cats = []
-    for p in paths.templates.glob("*.json"):
-        key = (str(p), p.stat().st_mtime)
+    try:
+        entries = [e for e in os.scandir(paths.templates) if e.name.endswith(".json") and e.is_file()]
+    except FileNotFoundError:
+        entries = []
+    for e in entries:  # one folder listing; the file times come with it
+        key = (e.path, e.stat().st_mtime)
         if key not in _catalog_cache:
-            cat = load_json(p, None)
+            cat = load_json(e.path, None)
             _catalog_cache[key] = _upgrade(cat) if cat else None
         if _catalog_cache[key]:
             cats.append(_catalog_cache[key])
@@ -493,7 +598,7 @@ def import_template(src, rules_db=None):
         old = before.get(stig["stig_id"])
         new_key = checklist.release_key(stig.get("version"), stig.get("release_info"))
         if not old:
-            report.append(f"{head}\n   NEW STIG: {len(stig['controls'])} controls added to the work queue.")
+            report.append(f"{head}\n   NEW STIG: {len(stig['controls'])} checks added to the Rules tab.")
             continue
         old_key = checklist.release_key(old.get("version"), old.get("release_info"))
         if new_key < old_key:
@@ -503,18 +608,70 @@ def import_template(src, rules_db=None):
             report.append(f"{head}\n   Same release as already imported (now available in this format too).")
             continue
         diffs = checklist.compare_controls(list(old["controls"].values()), stig["controls"])
-        changed_checks = {d["vuln_id"] for d in diffs if d["kind"] == "changed" and "check" in d["fields"]}
-        affected = [r for r in rules if r["stig_id"] == stig["stig_id"] and r.get("state") == "active"
-                    and (r["vuln_id"] in changed_checks
-                         or r["vuln_id"] in {d["vuln_id"] for d in diffs if d["kind"] == "removed"})]
+        moves = carry_over_renumbered(stig["stig_id"], diffs, rel)
+        moved_old = {o["vuln_id"] for o, _ in moves}
+        rules = load_rules()["rules"] if moves else rules
+        flagged = {d["vuln_id"] for d in diffs
+                   if (d["kind"] == "removed" and d["vuln_id"] not in moved_old)
+                   or (d["kind"] == "changed" and "check" in d["fields"])}
+        flagged |= {n["vuln_id"] for o, n in moves if o["check_hash"] != n["check_hash"]}
+        affected = [{"vuln_id": t["vuln_id"], "id": r["id"]} for r in rules if r.get("state") == "active"
+                    for t in rule_targets(r) if t["stig_id"] == stig["stig_id"] and t["vuln_id"] in flagged]
         counts = {k: sum(1 for d in diffs if d["kind"] == k) for k in ("added", "removed", "changed")}
         report.append(f"{head}\n   NEW RELEASE (was {old['release']}): {counts['added']} added, "
                       f"{counts['removed']} removed, {counts['changed']} changed."
                       + (f"\n   {len(affected)} active rule(s) need review: "
                          + ", ".join(f"{r['vuln_id']} ({r['id']})" for r in affected) if affected
                          else "\n   No active rules are affected.")
+                      + "".join(f"\n   {o['vuln_id']} was re-issued as {n['vuln_id']} ({n['rule_ver']}): its rules, "
+                                f"Manual-only flag and group choices moved over"
+                                + ("" if o["check_hash"] == n["check_hash"] else " - check text changed, review it")
+                                + "." for o, n in moves)
                       + "\n   Use 'Compare releases' on the Checklists tab to see the changes.")
     return catalog, report
+
+
+def carry_over_renumbered(stig_id, diffs, release):
+    """DISA sometimes retires a Vuln ID and re-issues the same requirement under a new one. When a removed control
+    and an added one have the same STIG ID (e.g. CISC-ND-000010) or identical check text, everything attached to
+    the old Vuln ID follows it: rules (their own control or a shared link), Manual-only flags and groups' rule
+    version choices. Each rule keeps the check text it was written against, so a changed check is flagged for
+    review. Returns [(old control, new control)]."""
+    removed = [d["old"] for d in diffs if d["kind"] == "removed"]
+    added = [d["new"] for d in diffs if d["kind"] == "added"]
+    moves = []
+    for old in removed:
+        match = (next((n for n in added if old.get("rule_ver") and n.get("rule_ver") == old["rule_ver"]), None)
+                 or next((n for n in added if n["check_hash"] == old["check_hash"]), None))
+        if match:
+            added.remove(match)
+            moves.append((old, match))
+    if not moves:
+        return moves
+    to_new = {o["vuln_id"]: n["vuln_id"] for o, n in moves}
+    for rule in load_rules()["rules"]:
+        if not any(t["stig_id"] == stig_id and t["vuln_id"] in to_new for t in rule_targets(rule)):
+            continue
+
+        def change(r):
+            for t in [r] + list(r.get("links") or []):
+                if t.get("stig_id") == stig_id and t.get("vuln_id") in to_new:
+                    old_id = t["vuln_id"]
+                    t["vuln_id"] = to_new[old_id]
+                    r.setdefault("review_log", []).append({
+                        "at": now(), "by": current_user(), "release": release,
+                        "note": f"DISA re-issued {old_id} as {t['vuln_id']} - rule moved over automatically"})
+        modify_rule(rule["id"], change)
+    old_keys = {f"{stig_id}|{o}": f"{stig_id}|{n}" for o, n in to_new.items()}
+
+    def move_manual(s):
+        s["manual_controls"] = sorted({old_keys.get(k, k) for k in s["manual_controls"]})
+    update_settings(move_manual)
+    for group in load_groups()["groups"]:
+        if any(k in old_keys for k in group.get("rule_choices") or {}):
+            modify_group(group["id"], lambda g: g.update(
+                rule_choices={old_keys.get(k, k): v for k, v in (g.get("rule_choices") or {}).items()}))
+    return moves
 
 
 def remove_template(cat):

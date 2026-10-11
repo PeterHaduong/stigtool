@@ -14,8 +14,6 @@ plans or interviews get no rule; they are listed in the report with the reason.
 Entries are keyed "<platform>:<rule version>" (platform = IOSXE_SW, IOSXE_RTR, NXOS) with a fallback to
 "IOSXE:<rule version>" for IOS-XE checks that are the same on switches and routers.
 """
-import re
-
 import assess
 import harden
 import rules as engine
@@ -103,7 +101,7 @@ NX_PORT = r"^interface Ethernet\d"
 NX_HOST = dict(section_how="regex", only="re:^\\s*no shutdown\\s*$",
                exclude="re:^\\s*(switchport mode (trunk|fex-fabric)|no switchport|channel-group)\\b")
 NX_L3IF = dict(only="ip address", exclude="re:^\\s*(shutdown|vrf member management)\\s*$")
-# Port roles come from interface descriptions (team setting, tab 3): "description UPLINK - ...",
+# Port roles come from interface descriptions (team setting, Team settings menu): "description UPLINK - ...",
 # "description DOWNLINK - ...", "description ACCESS - ..." / "UNTRUSTED - ...". Access checks FAIL when no
 # access-role ports are found, so unlabelled ports cannot slip past; for core / distribution groups without
 # access ports, pick a different rule version or mark the control N/A for that group.
@@ -111,7 +109,7 @@ ROLE_ACCESS = dict(only="role:access", exclude="re:^\\s*shutdown\\s*$", if_none=
 ROLE_UPLINK = dict(only="role:uplink", exclude="re:^\\s*shutdown\\s*$", if_none="fail")
 ROLE_DOWNLINK = dict(only="role:downlink", exclude="re:^\\s*shutdown\\s*$", if_none="pass")
 NOT_UPLINK = dict(exclude="role:uplink", if_none="pass")
-ROLE_NOTE = ("Uses PORT ROLES from interface descriptions (keywords are a team setting on tab 3): uplinks "
+ROLE_NOTE = ("Uses PORT ROLES from interface descriptions (keywords are a team setting: Team settings > Port roles): uplinks "
              "'description UPLINK - ...', downlinks 'description DOWNLINK - ...', client ports "
              "'description ACCESS - ...' or 'UNTRUSTED - ...'. ")
 LIVE_IOS_PORT = "re:^\\s*(shutdown|no switchport|vrf forwarding|channel-group)\\b"
@@ -662,7 +660,7 @@ def build_rule(spec, platform, stig_id, control):
         "state": "draft", "is_default": True, "version": 1, "commands": commands,
         "pass_logic": {"mode": spec["mode"], "conditions": [dict(cd) for cd in conds]},
         "na_enabled": bool(na), "na_logic": {"mode": "ALL", "conditions": [dict(cd) for cd in na]},
-        "comment": "", "notes": note, "tests": [], "outcome_text": {}, "expected_open": False,
+        "notes": note, "tests": [], "outcome_text": {}, "expected_open": False,
         "check_hash": control["check_hash"], "created_at": store.now(), "created_by": store.current_user(),
         "origin": "starter-drafts", "history": [], "fix": harden.starter_fix(platform, control["rule_ver"]),
     }
@@ -731,11 +729,11 @@ def create_drafts(index, rules_db, stig_ids=None):
 
 def report_text(report):
     lines = [f"Starter drafts created: {len(report['created'])}",
-             f"Controls that already had a rule (left alone): {report['skipped']}",
+             f"Checks that already had a rule (left alone): {report['skipped']}",
              f"Existing starter drafts given fix commands: {report.get('fixes_added', 0)}",
              f"Unedited starter drafts updated to the latest starter version: {report.get('refreshed', 0)}",
-             f"Controls needing a human / design decision (no draft): {len(report['manual'])}",
-             f"Controls with no starter entry: {len(report['no_entry'])}", ""]
+             f"Checks needing a human / design decision (no draft): {len(report['manual'])}",
+             f"Checks with no starter entry: {len(report['no_entry'])}", ""]
     if report["manual"]:
         lines.append("NEEDS A HUMAN DECISION (consider 'Manual only' or a group-specific rule):")
         for stig, vid, ver, title, why in report["manual"]:

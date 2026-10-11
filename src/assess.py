@@ -13,6 +13,7 @@ Group result for a control (worst device wins):
 Controls with no rule are "manual": the template's values are left untouched unless a
 reviewer sets a status.
 """
+import difflib
 import fnmatch
 import re
 import shutil
@@ -32,8 +33,11 @@ def key_of(stig_id, vuln_id):
     return f"{stig_id}|{vuln_id}"
 
 
+NOT_AUTOMATED = "Not automated (left as is)"  # no rule for this check: the checklist keeps its current value
+
+
 def label(status):
-    return STATUS_LABELS.get(status, "Manual (unchanged)" if status is None else str(status))
+    return STATUS_LABELS.get(status, NOT_AUTOMATED if status is None else str(status))
 
 
 def is_expected_open(c, which="final"):
@@ -56,13 +60,94 @@ def outcome_prefix(c):
 # ---------------------------------------------------------------- rules and groups
 
 def rules_for_control(rules_db, stig_id, vuln_id, include_retired=False):
-    return [r for r in rules_db["rules"]
-            if r["stig_id"] == stig_id and r["vuln_id"] == vuln_id
-            and (include_retired or r.get("state") != "retired")]
+    """Rules that answer this control: its own rules, then rules shared from other controls."""
+    rs = [r for r in rules_db["rules"] if store.rule_applies(r, stig_id, vuln_id)
+          and (include_retired or r.get("state") != "retired")]
+    return sorted(rs, key=lambda r: (r["stig_id"], r["vuln_id"]) != (stig_id, vuln_id))
+
+
+def same_words(text):
+    """Text compared across STIGs: case, spacing and the device word (switch / router) do not matter."""
+    text = re.sub(r"\b(switch|router|device)(es|s)?\b", "device", (text or "").lower())
+    return " ".join(text.replace(".", " ").split())
+
+
+def _word_key(word):
+    """A word as compared across STIGs: case, surrounding punctuation and switch / router do not matter."""
+    w = word.lower().strip(".,;:()\"'")
+    return "device" if re.fullmatch(r"(switch|router|device)(es|s)?", w) else w
+
+
+def text_similarity(mine, other):
+    """How alike two texts are, 0-100, comparing words loosely (see _word_key)."""
+    a, b = [_word_key(w) for w in (mine or "").split()], [_word_key(w) for w in (other or "").split()]
+    if not a and not b:
+        return 100
+    return round(100 * difflib.SequenceMatcher(None, a, b, autojunk=False).ratio())
+
+
+def text_diff(mine, other, loose=True):
+    """Word diff of two texts: [(kind, text)] with kind 'same', 'mine' (only in mine) or 'other' (only in other).
+
+    loose ignores case, punctuation, spacing and switch / router wording; 'same' parts show the other text's words.
+    """
+    a, b = re.split(r"(\s+)", mine or ""), re.split(r"(\s+)", other or "")
+
+    def key(tok):
+        if not loose:
+            return tok
+        return " " if not tok.strip() else _word_key(tok)
+    out = []
+    matcher = difflib.SequenceMatcher(None, [key(t) for t in a], [key(t) for t in b], autojunk=False)
+    for op, i1, i2, j1, j2 in matcher.get_opcodes():
+        if op == "equal":
+            out.append(("same", "".join(b[j1:j2])))
+            continue
+        if i2 > i1:
+            out.append(("mine", "".join(a[i1:i2])))
+        if j2 > j1:
+            out.append(("other", "".join(b[j1:j2])))
+    return out
+
+
+# The part of a product a DISA network STIG covers: Cisco IOS XE Switch NDM / RTR / L2S are one product's STIGs.
+STIG_PARTS = ("NDM", "RTR", "L2S", "ALG", "FW", "IDPS", "VPN", "MCAST")
+
+
+def stig_family(stig_short):
+    """('Cisco IOS XE Switch', 'NDM') for 'Cisco IOS XE Switch NDM'. A STIG with no part (an OS or application STIG)
+    is its own family: ('Microsoft Windows Server 2022', '')."""
+    head, _, last = stig_short.rpartition(" ")
+    return (head, last) if head and last.upper() in STIG_PARTS else (stig_short, "")
+
+
+def platform(stig_short):
+    """Device OS a STIG is written for, from its short name ('Cisco NX OS Switch NDM' -> 'NX-OS')."""
+    name = stig_short.lower()
+    return "NX-OS" if "nx os" in name or "nx-os" in name else "IOS-XE" if "ios xe" in name or "ios-xe" in name \
+        else stig_short
+
+
+def match_reason(control, refs):
+    """Why this control looks like the same check as one of refs, or ''."""
+    for ref in refs:
+        if control["check_hash"] == ref["check_hash"] or same_words(control["check"]) == same_words(ref["check"]):
+            return "same check text"
+    for ref in refs:
+        if control["rule_ver"] and control["rule_ver"] == ref["rule_ver"]:
+            return "same STIG ID"
+    for ref in refs:
+        if same_words(control["title"]) == same_words(ref["title"]):
+            return "same title"
+    return ""
 
 
 def resolve_rule(group, rules_db, stig_id, vuln_id):
-    """The active rule this group uses for a control, or None (manual)."""
+    """The active rule this group uses for a check, or None (manual).
+
+    1. the group's own choice for this check (Rule versions), 2. a version made for this group (rule["groups"]),
+    3. the default version - one meant for all groups. A version made only for other groups is never used.
+    """
     choice = (group.get("rule_choices") or {}).get(key_of(stig_id, vuln_id))
     if choice == "manual":
         return None
@@ -71,9 +156,22 @@ def resolve_rule(group, rules_db, stig_id, vuln_id):
         if r["id"] == choice:
             return r
     for r in active:
+        if group.get("id") in (r.get("groups") or []):
+            return r
+    general = [r for r in active if not r.get("groups")]
+    for r in general:
         if r.get("is_default"):
             return r
-    return active[0] if active else None
+    return general[0] if general else None
+
+
+def used_by_text(rule):
+    """Which device groups use a rule version, in words for lists and the editor."""
+    if rule.get("groups"):
+        return "Only " + ", ".join(rule["groups"])
+    if rule.get("is_default", True):
+        return "All groups (default)"
+    return "Spare version - used only where a group picks it"
 
 
 def control_state(rules_db, stig_id, control):
@@ -85,7 +183,7 @@ def control_state(rules_db, stig_id, control):
     if not rs:
         return "Needs rule"
     active = [r for r in rs if r.get("state") == "active"]
-    if any(r.get("check_hash") != control["check_hash"] for r in active):
+    if any(store.rule_check_hash(r, stig_id, control["vuln_id"]) != control["check_hash"] for r in active):
         return "STIG changed - review"
     return "Active" if active else "Draft"
 
@@ -121,7 +219,7 @@ def coverage(group, rules_db, index):
             row["total"] += 1
             if rule:
                 row["automated"] += 1
-                if rule.get("check_hash") != control["check_hash"]:
+                if store.rule_check_hash(rule, stig_id, vuln_id) != control["check_hash"]:
                     row["changed"] += 1
             elif key in manual or choices.get(key) == "manual":
                 row["manual"] += 1
@@ -143,6 +241,24 @@ def commands_for_groups(groups, rules_db, index):
                     if cmd.strip():
                         sources[cmd.strip()].add(f"{index[stig_id]['short']} {control['vuln_id']}")
     return dict(sources)
+
+
+HOST_SPLIT = re.compile(r"[\s,;]+")
+IP_LIKE = re.compile(r"^\(?[0-9a-fA-F.:]+\)?$")
+
+
+def parse_hostnames(text):
+    """Hostnames from pasted text: one per line, or separated by commas / spaces / tabs (an Excel column, a
+    SolarWinds list). IP addresses and '(...)' bits are ignored. Returned upper-case, in order, without repeats."""
+    out = []
+    for tok in HOST_SPLIT.split(text or ""):
+        tok = tok.strip().strip("\"'")
+        if not tok or IP_LIKE.match(tok) or tok.startswith("("):
+            continue
+        tok = tok.rstrip(":").upper()
+        if tok and tok not in out:
+            out.append(tok)
+    return out
 
 
 def assign_group(host, groups_db):
@@ -206,7 +322,6 @@ def evaluate_run(run, groups_db, rules_db, index):
                 "rule_id": rule["id"] if rule else None,
                 "rule_name": rule.get("name", "") if rule else "",
                 "rule_version": rule.get("version", 1) if rule else None,
-                "rule_comment": rule.get("comment", "") if rule else "",
                 "outcome_text": dict(rule.get("outcome_text") or {}) if rule else {},
                 "expected_open": bool(rule.get("expected_open")) if rule else False,
                 "per_device": {}, "recommended": None, "details": "",
@@ -238,6 +353,69 @@ def evaluate_run(run, groups_db, rules_db, index):
     run["stig_releases"] = {sid: s["release"] for sid, s in index.items()}
     run["evaluated"] = store.now()
     return run
+
+
+# Rules used to have an "Extra comment" that was added to the checklist for EVERY result. It was removed: text
+# that is true for one result (the usual case, e.g. "Not a finding because logging is enabled") said the wrong
+# thing on the others. Old rules are converted once into per-result Reason text.
+RESULT_PHRASES = {"not_a_finding": r"\bnot\s+a\s+finding\b", "not_applicable": r"\bnot\s+applicable\b",
+                  "open": r"\b(this\s+is\s+a\s+finding|is\s+open|open\s+finding)\b"}
+REASON_RESULTS = ("not_a_finding", "open", "not_applicable")
+
+
+def comment_to_reasons(rule):
+    """{result: new Reason text} for a rule's old Extra comment: only the result it names, if it names exactly
+    one; otherwise every result, as before (added after any Reason text the result already has)."""
+    text = (rule.get("comment") or "").strip()
+    if not text:
+        return {}
+    named = [res for res, rx in RESULT_PHRASES.items() if re.search(rx, text, re.I)]
+    targets = named if len(named) == 1 else REASON_RESULTS
+    current = rule.get("outcome_text") or {}
+    return {res: ((current.get(res) or "").rstrip() + "\n\n" + text).strip() for res in targets}
+
+
+def move_extra_comments(rules):
+    """One-time tidy: each rule's Extra comment becomes Reason text (see comment_to_reasons). Returns how many
+    rules changed."""
+    changed = 0
+    for rule in rules:
+        if "comment" not in rule:
+            continue
+
+        def change(r):
+            moved = comment_to_reasons(r)
+            r["outcome_text"] = {**(r.get("outcome_text") or {}), **moved}
+            r.pop("comment", None)
+            if moved:
+                r.setdefault("review_log", []).append({
+                    "at": store.now(), "by": store.current_user(),
+                    "note": "'Extra comment' moved into the Reason text for: " + ", ".join(label(x) for x in moved)})
+        store.modify_rule(rule["id"], change)
+        changed += 1
+    return changed
+
+
+def out_of_date(run, groups_db, rules_db, index):
+    """What changed since the run was assessed: {"checks": n, "devices": n}. A check counts when the rule the
+    group would use now differs (another rule, a new revision, retired) or the group's STIGs changed; a device
+    counts when it would now land in another group."""
+    checks = 0
+    for gid, res in (run or {}).get("results", {}).items():
+        group = find_group(groups_db, gid)
+        if not group:
+            checks += len(res["controls"])
+            continue
+        plan = {key_of(sid, c["vuln_id"]): rule for sid, c, rule in group_plan(group, rules_db, index)}
+        checks += len(set(res["controls"]) ^ set(plan))
+        for k, rule in plan.items():
+            rec = res["controls"].get(k)
+            if rec and ((rule or {}).get("id") != rec["rule_id"]
+                        or (rule and rule.get("version", 1) != rec["rule_version"])):
+                checks += 1
+    devices = sum(1 for host, m in (run or {}).get("membership", {}).items()
+                  if assign_group(host, groups_db)[0] != m.get("group"))
+    return {"checks": checks, "devices": devices}
 
 
 def rollup(statuses):
@@ -307,8 +485,9 @@ def checklist_text(c, placement, stamp_line):
     """The status / finding details / comments to write for one control.
 
     The reason goes in the field the team's guidance names for that result (default: Not a Finding and
-    Not Applicable -> Comments, Open -> Finding Details). The rule's extra comment and the reviewer's
-    comment always go in Comments. A field with nothing to say is left as the template has it.
+    Not Applicable -> Comments, Open -> Finding Details). The reviewer's comment always goes in Comments.
+    A field with nothing to say is left as the template has it. (Runs made before rules lost their 'Extra
+    comment' still carry it as rule_comment, so writing such a run again gives the same checklist.)
     """
     reason = reason_text(c, stamp_line)
     where = (placement or store.DEFAULT_PLACEMENT).get(c["final"], "comments")
@@ -372,7 +551,7 @@ def write_package(run, group_id, reviewer, groups_db, rules_db, fmt, placement=N
                     notes.append(f"{s['short']}: the {fmt_label} template is {rel} but rules were assessed "
                                  f"against {newest}. Import the {newest} {fmt_label} file.")
         if skipped:
-            notes.append(f"{len(skipped)} control(s) are not in the {fmt_label} template and were left out: "
+            notes.append(f"{len(skipped)} check(s) are not in the {fmt_label} template and were left out: "
                          + ", ".join(skipped))
         names = "-".join(_safe(s["short"]) for s in cat["stigs"] if s["stig_id"] in stig_ids)
         dst = folder / f"{group_id}_{names}.{fmt}"
@@ -407,7 +586,7 @@ def write_package(run, group_id, reviewer, groups_db, rules_db, fmt, placement=N
     messages.insert(0, f"Package written to {folder}")
     messages += notes
     if unresolved:
-        messages.append(f"{len(unresolved)} control(s) still Not Reviewed - package marked REVIEW_REQUIRED.")
+        messages.append(f"{len(unresolved)} check(s) still Not Reviewed - package marked REVIEW_REQUIRED.")
     return folder, all_ok, messages
 
 
@@ -437,7 +616,7 @@ def _devices_report(run, group_id):
 
 def coverage_table(rows):
     """Text table of how many controls each STIG has automated / manual / not built."""
-    out = [f"{'STIG':<40}{'Release':<22}{'Controls':>9}{'Automated':>11}{'Manual':>8}{'No rule':>9}"
+    out = [f"{'STIG':<40}{'Release':<22}{'Checks':>9}{'Automated':>11}{'Manual':>8}{'No rule':>9}"
            f"{'Draft':>7}{'Review':>8}"]
     for r in rows:
         out.append(f"{r['short'][:39]:<40}{r['release'][:21]:<22}{r['total']:>9}{r['automated']:>11}"
@@ -458,7 +637,7 @@ def _summary_report(run, group_id, reviewer, written, all_ok, unresolved, fmt_la
     out.append(f"Preservation validation: {'PASSED' if all_ok else 'FAILED / INCOMPLETE'}")
     if unresolved:
         out.append("")
-        out.append(f"*** REVIEW PACKAGE - {len(unresolved)} control(s) are Not Reviewed. "
+        out.append(f"*** REVIEW PACKAGE - {len(unresolved)} check(s) are Not Reviewed. "
                    "Not a validated final turnover. ***")
     if notes:
         out.append("")
@@ -472,7 +651,7 @@ def _summary_report(run, group_id, reviewer, written, all_ok, unresolved, fmt_la
     by_stig = defaultdict(Counter)
     for c in res["controls"].values():
         by_stig[c["family"]][result_label(c)] += 1
-    names = ["Not a Finding", "Open", "Open (expected)", "Not Applicable", "Not Reviewed", "Manual (unchanged)"]
+    names = ["Not a Finding", "Open", "Open (expected)", "Not Applicable", "Not Reviewed", NOT_AUTOMATED]
     out.append(f"  {'STIG':<40}" + "".join(f"{n:>20}" for n in names))
     for stig, counts in sorted(by_stig.items()):
         out.append(f"  {stig[:39]:<40}" + "".join(f"{counts.get(n, 0):>20}" for n in names))
@@ -510,7 +689,7 @@ def _exceptions_report(run, group_id):
         out.append("")
     manual = [c for c in run["results"][group_id]["controls"].values() if c["final"] is None]
     if manual:
-        out.append(f"Manual controls (no rule; template values left unchanged): {len(manual)}")
+        out.append(f"Checks not automated (no rule; checklist values left as they were): {len(manual)}")
         out += [f"  {c['family']} {c['vuln_id']} {c['title'][:90]}" for c in manual]
     return out
 
@@ -527,7 +706,7 @@ def _drift_report(run, group_id):
         odd = [f"{h} ({label(r['status'])})" for h, r in c["per_device"].items() if r["status"] != majority]
         out.append(f"{c['family']} {c['vuln_id']}: majority {label(majority)}; differs: {', '.join(odd)}")
     if not found:
-        out.append("No drift: every device returned the same result for every automated control.")
+        out.append("No drift: every device returned the same result for every automated check.")
     return out
 
 
@@ -573,8 +752,9 @@ def _register(run, group_id, reviewer):
     return out
 
 
-def import_solarwinds(path, groups_db, rules_db):
-    """Parse a SolarWinds output file into a new run (not yet evaluated)."""
+def import_solarwinds(path, groups_db, rules_db, keep_evidence=True):
+    """Parse a SolarWinds output file into a new run (not yet evaluated). keep_evidence=False (trying draft rules)
+    reads the file without filing a copy of it as assessment evidence."""
     text = store.read_text(path)
     probe = collect.parse_output(text)
     script_ids = {d["script_id"] for d in probe["devices"] if d["script_id"]}
@@ -586,7 +766,7 @@ def import_solarwinds(path, groups_db, rules_db):
     if not expected:
         expected = {c.strip() for r in rules_db["rules"] for c in r["commands"] if c.strip()}
     parsed = collect.parse_output(text, expected)
-    archived = store.archive_evidence(path)
+    archived = store.archive_evidence(path) if keep_evidence else Path(path)
     run = new_run(parsed, archived, groups_db)
     run["script_ids"] = sorted(script_ids)
     return run

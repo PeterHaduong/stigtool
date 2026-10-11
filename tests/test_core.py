@@ -285,7 +285,7 @@ class StoreCase(unittest.TestCase):
         store.paths = self.old
         shutil.rmtree(self.tmp, ignore_errors=True)
 
-    def make_release(self, name, release, check_change=None, add=None, drop=None):
+    def make_release(self, name, release, check_change=None, add=None, drop=None, renumber=None):
         """Copy the NDM CKLB fixture as another DISA release with optional control changes."""
         data = json.loads(CKLB.read_text(encoding="utf-8"))
         stig = data["stigs"][0]
@@ -299,14 +299,16 @@ class StoreCase(unittest.TestCase):
             rules_.append(extra)
         if drop:
             stig["rules"] = [r for r in rules_ if r["group_id"] != drop]
+        for old_id, new_id in (renumber or {}).items():  # DISA re-issues a requirement under a new Vuln ID
+            next(r for r in stig["rules"] if r["group_id"] == old_id)["group_id"] = new_id
         path = self.tmp / name
         path.write_text(json.dumps(data), encoding="utf-8")
         return path
 
 
-def active_rule(index, stig_id, vuln_id, command, cond_, rid, tests=None, comment=""):
+def active_rule(index, stig_id, vuln_id, command, cond_, rid, tests=None, reasons=None):
     return {"id": rid, "stig_id": stig_id, "vuln_id": vuln_id, "name": "Default", "state": "active",
-            "is_default": True, "version": 1, "commands": [command], "comment": comment,
+            "is_default": True, "version": 1, "commands": [command], "outcome_text": reasons or {},
             "check_hash": index[stig_id]["controls"][vuln_id]["check_hash"],
             "pass_logic": {"mode": "ALL", "conditions": [{**rules.NEW_CONDITION, "command": command, **cond_}]},
             "tests": tests or []}
@@ -339,6 +341,38 @@ class TeamStoreTests(StoreCase):
         with self.assertRaises(store.ConflictError) as ctx:
             store.save_rule(mine)
         self.assertEqual(ctx.exception.current["name"], "theirs")
+
+    def test_old_extra_comments_become_reason_text(self):
+        named = {"comment": "Not a finding because logging is enabled"}
+        self.assertEqual(assess.comment_to_reasons(named),
+                         {"not_a_finding": "Not a finding because logging is enabled"})
+        general = {"comment": "Org value per policy NET-12.", "outcome_text": {"open": "Missing on {devices}."}}
+        self.assertEqual(assess.comment_to_reasons(general), {
+            "not_a_finding": "Org value per policy NET-12.",
+            "open": "Missing on {devices}.\n\nOrg value per policy NET-12.",
+            "not_applicable": "Org value per policy NET-12."})
+        store.save_rule({"id": "R-X", "stig_id": "X", "vuln_id": "V-1", "comment": named["comment"]}, check=False)
+        store.save_rule({"id": "R-Y", "stig_id": "X", "vuln_id": "V-2", "comment": ""}, check=False)
+        self.assertEqual(assess.move_extra_comments(store.load_rules()["rules"]), 2)
+        rules = {r["id"]: r for r in store.load_rules()["rules"]}
+        self.assertNotIn("comment", rules["R-X"])
+        self.assertEqual(rules["R-X"]["outcome_text"], {"not_a_finding": named["comment"]})
+        self.assertIn("Reason text", rules["R-X"]["review_log"][-1]["note"])
+        self.assertNotIn("comment", rules["R-Y"])
+        self.assertEqual(assess.move_extra_comments(store.load_rules()["rules"]), 0)  # only once
+
+    def test_cached_reads_still_see_teammates_changes(self):
+        store.save_rule({"id": "R-C", "stig_id": "X", "vuln_id": "V-1", "name": "first"}, check=False)
+        self.assertEqual(store.load_rules()["rules"][0]["name"], "first")
+        mine = store.load_rules()["rules"][0]
+        mine["name"] = "changed in memory only"  # callers get copies; the cache is not touched
+        self.assertEqual(store.load_rules()["rules"][0]["name"], "first")
+        store.modify_rule("R-C", lambda r: r.update(name="saved by a teammate, a bit longer"))
+        self.assertEqual(store.load_rules()["rules"][0]["name"], "saved by a teammate, a bit longer")
+        store.delete_rule("R-C")
+        self.assertEqual(store.load_rules()["rules"], [])
+        store.set_setting("output_format", "cklb")
+        self.assertEqual(store.load_settings()["output_format"], "cklb")
 
     def test_settings_updates_do_not_clobber(self):
         store.set_override("sw1", "G1")
@@ -415,7 +449,8 @@ class ReleaseTests(StoreCase):
                                                        rules_db["rules"][0]["check_hash"])
         self.assertTrue(old_rel.startswith("V3R6"))
         # mark reviewed clears the flag
-        store.mark_rule_reviewed("R-A", index[NDM]["controls"]["V-220524"]["check_hash"], index[NDM]["release"])
+        store.mark_rule_reviewed("R-A", NDM, "V-220524", index[NDM]["controls"]["V-220524"]["check_hash"],
+                                 index[NDM]["release"])
         rules_db = store.load_rules()
         self.assertEqual(assess.control_state(rules_db, NDM, index[NDM]["controls"]["V-220524"]), "Active")
         self.assertEqual(rules_db["rules"][0]["review_log"][0]["release"], "V3R7 (01 Jul 2026)")
@@ -440,6 +475,220 @@ class ReleaseTests(StoreCase):
 
 
 @needs_fixtures
+class SharedRuleMatchTests(unittest.TestCase):
+    def test_match_reason(self):
+        mine = {"check_hash": "a", "check": "Verify the Cisco switch is configured.", "rule_ver": "CISC-ND-000010",
+                "title": "The Cisco switch must limit sessions."}
+        router = dict(mine, check_hash="b", check="Verify the  Cisco router is configured", rule_ver="X")
+        same_id = dict(mine, check_hash="c", check="Something else", title="Other")
+        same_title = dict(mine, check_hash="d", check="Something else", rule_ver="Y",
+                          title="The Cisco router must limit sessions")
+        other = dict(mine, check_hash="e", check="Something else", rule_ver="Z", title="Other")
+        self.assertEqual(assess.match_reason(router, [mine]), "same check text")
+        self.assertEqual(assess.match_reason(same_id, [mine]), "same STIG ID")
+        self.assertEqual(assess.match_reason(same_title, [mine]), "same title")
+        self.assertEqual(assess.match_reason(other, [mine]), "")
+
+    def test_check_text_compare(self):
+        mine = "Review the Cisco switch configuration.\nVerify login block-for is set."
+        other = "Review the Cisco router configuration. Verify login block-for 900 is set."
+        self.assertEqual(assess.text_similarity(mine, mine.replace("switch", "router")), 100)
+        parts = assess.text_diff(mine, other)
+        self.assertEqual([t for k, t in parts if k == "other"], ["900 "])
+        self.assertFalse([t for k, t in parts if k == "mine"])
+        strict = assess.text_diff(mine, other, loose=False)
+        self.assertIn(("mine", "switch"), strict)
+        self.assertIn(("other", "router"), strict)
+        self.assertLess(assess.text_similarity(mine, "Something else entirely"), 30)
+
+    def test_parse_pasted_hostnames(self):
+        pasted = "lab-1a-access\r\nLAB-1B-ACCESS (192.0.2.34)\nlab-1c-access, lab-1d-access\tlab-1a-access\n\n2001:db8::36"
+        self.assertEqual(assess.parse_hostnames(pasted),
+                         ["LAB-1A-ACCESS", "LAB-1B-ACCESS", "LAB-1C-ACCESS", "LAB-1D-ACCESS"])
+
+    def test_stig_family(self):
+        self.assertEqual(assess.stig_family("Cisco IOS XE Switch NDM"), ("Cisco IOS XE Switch", "NDM"))
+        self.assertEqual(assess.stig_family("Cisco NX OS Switch L2S"), ("Cisco NX OS Switch", "L2S"))
+        self.assertEqual(assess.stig_family("Microsoft Windows Server 2022"), ("Microsoft Windows Server 2022", ""))
+        self.assertEqual(assess.stig_family("Meinberg LANTIME"), ("Meinberg LANTIME", ""))
+
+    def test_platform(self):
+        self.assertEqual(assess.platform("Cisco NX OS Switch NDM"), "NX-OS")
+        self.assertEqual(assess.platform("Cisco IOS XE Router RTR"), "IOS-XE")
+
+
+@needs_fixtures
+class SharedRuleTests(StoreCase):
+    """One rule answering several controls (the same check in more than one STIG)."""
+
+    def setUp(self):
+        super().setUp()
+        store.import_template(CKLB)
+        store.import_template(CKL)
+        self.index = store.control_index()
+
+    def shared_rule(self, rid="R-S"):
+        rule = active_rule(self.index, RTR, "V-220986", "show run", {"check": "has", "text": "login"}, rid)
+        rule["links"] = [{"stig_id": NDM, "vuln_id": "V-220524",
+                          "check_hash": self.index[NDM]["controls"]["V-220524"]["check_hash"]}]
+        store.save_rule(rule, check=False)
+
+    def test_shared_rule_answers_every_linked_control(self):
+        self.shared_rule()
+        db = store.load_rules()
+        self.assertEqual([r["id"] for r in assess.rules_for_control(db, NDM, "V-220524")], ["R-S"])
+        self.assertEqual(assess.resolve_rule({"stigs": [NDM]}, db, NDM, "V-220524")["id"], "R-S")
+        for stig_id, vuln_id in ((RTR, "V-220986"), (NDM, "V-220524")):
+            self.assertEqual(assess.control_state(db, stig_id, self.index[stig_id]["controls"][vuln_id]), "Active")
+        row = assess.coverage({"stigs": [NDM]}, db, self.index)[0]
+        self.assertEqual((row["automated"], row["changed"]), (1, 0))
+
+    def test_versions_for_some_device_groups(self):
+        default = active_rule(self.index, NDM, "V-220524", "show run", {"check": "has", "text": "a"}, "R-D")
+        border = active_rule(self.index, NDM, "V-220524", "show run", {"check": "has", "text": "b"}, "R-B")
+        border.update(is_default=False, groups=["BORDER", "EDGE"])
+        for r in (default, border):
+            store.save_rule(r, check=False)
+        db = store.load_rules()
+        pick = lambda gid, choices=None: (assess.resolve_rule({"id": gid, "rule_choices": choices or {}}, db, NDM,
+                                                               "V-220524") or {}).get("id")
+        self.assertEqual(pick("BORDER"), "R-B")      # the version made for this group
+        self.assertEqual(pick("EDGE"), "R-B")
+        self.assertEqual(pick("ACCESS"), "R-D")      # everyone else gets the default
+        self.assertEqual(pick("ACCESS", {f"{NDM}|V-220524": "R-B"}), "R-B")    # a group's own choice still wins
+        self.assertIsNone(pick("BORDER", {f"{NDM}|V-220524": "manual"}))
+        default["state"] = "retired"
+        store.save_rule(default, check=False)
+        db = store.load_rules()
+        self.assertIsNone(pick("ACCESS"))            # never falls back to another group's version
+        self.assertEqual(assess.used_by_text(border), "Only BORDER, EDGE")
+
+    def test_controls_own_rule_wins_over_shared_one(self):
+        self.shared_rule()
+        store.save_rule(active_rule(self.index, NDM, "V-220524", "show run", {"check": "has", "text": "x"}, "R-O"),
+                        check=False)
+        db = store.load_rules()
+        self.assertEqual([r["id"] for r in assess.rules_for_control(db, NDM, "V-220524")], ["R-O", "R-S"])
+        self.assertEqual(assess.resolve_rule({"stigs": [NDM]}, db, NDM, "V-220524")["id"], "R-O")
+
+    def test_disa_change_flags_only_the_changed_control(self):
+        self.shared_rule()
+        _, report = store.import_template(self.make_release("ndm_r7.cklb", 7, check_change="V-220524"))
+        self.assertIn("V-220524 (R-S)", "\n".join(report))
+        index, db = store.control_index(), store.load_rules()
+        ndm_ctrl, rtr_ctrl = index[NDM]["controls"]["V-220524"], index[RTR]["controls"]["V-220986"]
+        self.assertEqual(assess.control_state(db, NDM, ndm_ctrl), "STIG changed - review")
+        self.assertEqual(assess.control_state(db, RTR, rtr_ctrl), "Active")
+        store.mark_rule_reviewed("R-S", NDM, "V-220524", ndm_ctrl["check_hash"], index[NDM]["release"])
+        db = store.load_rules()
+        self.assertEqual(assess.control_state(db, NDM, ndm_ctrl), "Active")
+        self.assertEqual(db["rules"][0]["check_hash"], rtr_ctrl["check_hash"])  # its own control is untouched
+
+    def test_reissued_vuln_ids_carry_rules_over(self):
+        self.shared_rule()  # RTR V-220986, shared with NDM V-220524
+        store.save_rule(active_rule(self.index, NDM, "V-220518", "show run", {"check": "has", "text": "x"}, "R-H"),
+                        check=False)
+        store.set_manual(f"{NDM}|V-220519", True)
+        store.save_group({"id": "G", "stigs": [NDM], "rule_choices": {f"{NDM}|V-220518": "R-H"}}, check=False)
+        newer = self.make_release("ndm_r7.cklb", 7, check_change="V-220518",
+                                  renumber={"V-220524": "V-299924", "V-220518": "V-299918", "V-220519": "V-299919"})
+        _, report = store.import_template(newer)
+        text = "\n".join(report)
+        self.assertIn("V-220524 was re-issued as V-299924", text)
+        self.assertIn("V-220518 was re-issued as V-299918", text)
+        index, db = store.control_index(), store.load_rules()
+        shared = next(r for r in db["rules"] if r["id"] == "R-S")
+        self.assertEqual(shared["links"][0]["vuln_id"], "V-299924")
+        own = next(r for r in db["rules"] if r["id"] == "R-H")
+        self.assertEqual(own["vuln_id"], "V-299918")
+        self.assertEqual(assess.control_state(db, NDM, index[NDM]["controls"]["V-299924"]), "Active")
+        self.assertEqual(assess.control_state(db, NDM, index[NDM]["controls"]["V-299918"]), "STIG changed - review")
+        self.assertIn(f"{NDM}|V-299919", db["manual_controls"])
+        self.assertEqual(store.load_groups()["groups"][0]["rule_choices"], {f"{NDM}|V-299918": "R-H"})
+
+    def test_export_import_keeps_links(self):
+        self.shared_rule()
+        path = self.tmp / "export.json"
+        store.export_rules(path)
+        store.delete_rule("R-S")
+        store.import_rules(path)
+        self.assertEqual(store.load_rules()["rules"][0]["links"][0]["vuln_id"], "V-220524")
+
+
+@needs_fixtures
+class FixReviewTests(StoreCase):
+    """Fix commands only reach hardening scripts once reviewed, and a rule change sends them back for review."""
+
+    def setUp(self):
+        super().setUp()
+        import harden
+        self.harden = harden
+        store.import_template(CKLB)
+        self.index = store.control_index()
+        rule = active_rule(self.index, NDM, "V-220524", "show run", {"check": "has", "text": "login block-for"}, "R-F")
+        rule["fix"] = {"low": "", "high": "login block-for 900 attempts 3 within 120"}
+        store.save_rule(rule, check=False)
+        self.group = {"id": "G", "stigs": [NDM]}
+
+    def test_status_follows_fix_and_rule_logic(self):
+        h = self.harden
+        self.assertEqual(h.fix_status(store.load_rules()["rules"][0]), "unreviewed")
+        h.save_fix("R-F", {"low": "", "high": "login block-for 900 attempts 3 within 120"}, reviewed=True)
+        rule = store.load_rules()["rules"][0]
+        self.assertEqual(h.fix_status(rule), "reviewed")
+        rule["pass_logic"]["conditions"].append({**rules.NEW_CONDITION, "command": "show run", "text": "x"})
+        self.assertEqual(h.fix_status(rule), "stale")  # condition numbers may have moved
+        rule = store.load_rules()["rules"][0]
+        rule["comment"] = "wording only"
+        self.assertEqual(h.fix_status(rule), "reviewed")  # changes the fix does not depend on are fine
+        self.assertEqual(h.fix_status({"fix": {"low": " ", "high": ""}}), "none")
+
+    def test_scripts_use_reviewed_fixes_only(self):
+        h = self.harden
+        _, written, skipped = h.generate_baseline(self.group, store.load_rules(), self.index)
+        self.assertEqual((written, len(skipped)), ([], 1))
+        h.save_fix("R-F", {"low": "", "high": "login block-for 900 attempts 3 within 120"}, reviewed=True)
+        _, written, skipped = h.generate_baseline(self.group, store.load_rules(), self.index)
+        self.assertEqual((len(written), skipped), (1, []))
+        self.assertIn("login block-for 900", written[0][0].read_text(encoding="utf-8"))
+
+    def test_site_values_fill_scripts(self):
+        h = self.harden
+        h.save_fix("R-F", {"low": "banner login ^C\n<DOD_BANNER>\n^C\nntp server <NTP_SERVER_1>", "high": ""},
+                   reviewed=True)
+        store.set_site_value("NTP_SERVER_1", "192.0.2.10")
+        values = h.site_values(store.load_settings())
+        self.assertIn("DOD_BANNER", values)  # built-in default
+        _, written, _ = h.generate_baseline(self.group, store.load_rules(), self.index, values=values)
+        text = written[0][0].read_text(encoding="utf-8")
+        self.assertIn("You are accessing a U.S. Government (USG) Information System", text)
+        self.assertIn("ntp server 192.0.2.10", text)
+        self.assertNotIn("<DOD_BANNER>", text)
+        self.assertIn("Filled in from the team's site values: DOD_BANNER, NTP_SERVER_1", text)
+        store.set_site_value("NTP_SERVER_1", None)
+        _, written, _ = h.generate_baseline(self.group, store.load_rules(), self.index,
+                                            values=h.site_values(store.load_settings()))
+        text = written[0][0].read_text(encoding="utf-8")
+        self.assertIn("EDIT BEFORE USE", text)
+        self.assertIn("<NTP_SERVER_1>", text)
+
+    def test_pasted_banner_is_compacted_and_stays_reviewed(self):
+        h = self.harden
+        h.save_fix("R-F", {"low": "banner login ^C\n" + h.DOD_BANNER + "\n^C", "high": ""}, reviewed=True)
+        self.assertEqual(h.compact_stored_fixes(store.load_rules()["rules"]), 1)
+        rule = store.load_rules()["rules"][0]
+        self.assertEqual(rule["fix"]["low"], "banner login ^C\n<DOD_BANNER>\n^C")
+        self.assertEqual(h.fix_status(rule), "reviewed")
+        self.assertEqual(h.compact_stored_fixes(store.load_rules()["rules"]), 0)  # only once
+
+    def test_fix_edit_is_kept_in_history_and_export_drops_reviewer(self):
+        self.harden.save_fix("R-F", {"low": "", "high": "login block-for 600 attempts 3 within 120"}, reviewed=True)
+        rule = store.load_rules()["rules"][0]
+        self.assertIn("900", rule["history"][-1]["fix"]["high"])
+        self.assertNotIn("by", store.clean_rule(rule)["fix_review"])
+
+
+@needs_fixtures
 class EndToEndTests(StoreCase):
     def setup_project(self):
         store.import_template(CKLB)
@@ -449,7 +698,7 @@ class EndToEndTests(StoreCase):
         self.cmd = "show running-config | include ^login block-for"
         store.save_rule(active_rule(index, NDM, "V-220524", self.cmd,
                                     {"check": "number", "text": "attempts", "op": "<=", "value": "3"},
-                                    "R-0001", comment="Checked login block-for."), check=False)
+                                    "R-0001", reasons={"not_a_finding": "Checked login block-for."}), check=False)
         rtr = active_rule(index, RTR, self.rtr_first, "show ip route", {"check": "has", "text": "via"}, "R-0002")
         store.save_rule(rtr, check=False)
         # an intentional finding: Open on purpose with a risk-acceptance reason
@@ -485,6 +734,14 @@ class EndToEndTests(StoreCase):
         self.assertIsNone(acc[f"{NDM}|V-220518"]["recommended"])
         self.assertNotIn(f"{RTR}|{self.rtr_first}", run["results"]["CAMPUS-HANGOFF"]["controls"])
 
+        self.assertEqual(assess.out_of_date(run, groups_db, rules_db, index), {"checks": 0, "devices": 0})
+        changed = json.loads(json.dumps(rules_db))
+        next(r for r in changed["rules"] if r["vuln_id"] == "V-220524")["version"] += 1  # rule edited later
+        moved = json.loads(json.dumps(groups_db))
+        moved["device_overrides"]["LAB-1D-ACCESS"] = "CAMPUS-ACCESS"  # device moved to another group later
+        # the edited NDM rule is used by both groups in the run, so two results are out of date
+        self.assertEqual(assess.out_of_date(run, moved, changed, index), {"checks": 2, "devices": 1})
+
         acc[f"{RTR}|{self.rtr_first}"].update(final="not_applicable", reviewer_changed=True,
                                               reviewer_comment="No routing on this group.")
         assess.evaluate_run(run, groups_db, rules_db, index)
@@ -515,7 +772,7 @@ class EndToEndTests(StoreCase):
         # Team guidance: Not a Finding -> reason in Comments, Finding Details left as the template has it.
         self.assertEqual(r["V-220524"]["finding_details"], "")
         self.assertIn("LAB-1A-ACCESS", r["V-220524"]["comments"])
-        self.assertTrue(r["V-220524"]["comments"].rstrip().endswith("Checked login block-for."))
+        self.assertTrue(r["V-220524"]["comments"].startswith("Checked login block-for."))
         self.assertIn("REVIEW_REQUIRED", folder.name)
         self.assertEqual(r["V-220519"]["status"], "open")
         self.assertTrue(r["V-220519"]["finding_details"].startswith(
@@ -525,7 +782,8 @@ class EndToEndTests(StoreCase):
         c = run["results"]["CAMPUS-ACCESS"]["controls"][f"{NDM}|V-220524"]
         custom = assess.checklist_text(c, {**store.DEFAULT_PLACEMENT, "not_a_finding": "finding_details"}, "x")
         self.assertIn("LAB-1A-ACCESS", custom["finding_details"])
-        self.assertEqual(custom["comments"], "Checked login block-for.")
+        self.assertTrue(custom["finding_details"].startswith("Checked login block-for."))
+        self.assertIsNone(custom["comments"])
         exc = (folder / "exceptions_and_review_required.txt").read_text(encoding="utf-8")
         self.assertIn("Expected (intentional) findings", exc)
         self.assertIn("Open (expected)", (folder / "group_assessment_summary.txt").read_text(encoding="utf-8"))

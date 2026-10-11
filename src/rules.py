@@ -156,6 +156,12 @@ def _quote(s):
 
 def describe(cond):
     """One plain-English sentence for a condition."""
+    command, where, tail = describe_parts(cond)
+    return f"[{command}] {where} {tail}"
+
+
+def describe_parts(cond):
+    """(command, where it looks, what must be true) - the condition in three short plain-English pieces."""
     c = {**NEW_CONDITION, **cond}
     if c["scope"] == "all":
         where = "the output"
@@ -182,7 +188,7 @@ def describe(cond):
         tail = f"matches pattern {_quote(c['text'])}"
     else:
         tail = f"does NOT match pattern {_quote(c['text'])}"
-    return f"[{c['command']}] {where} {tail}"
+    return c['command'], where, tail
 
 
 def condition_problems(cond, commands=None):
