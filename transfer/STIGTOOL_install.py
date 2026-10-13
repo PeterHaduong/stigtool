@@ -1,4 +1,4 @@
-"""STIGTOOL installer - part 1 of 1 (bundle 6789ecc2).
+"""STIGTOOL installer - part 1 of 1 (bundle f40d2b28).
 
 HOW TO USE: save this text as a .py file and run it:   python <this file>
   - Run every part of the bundle (1 in total), in any order.
@@ -36,7 +36,7 @@ def main():
             current, buf = (f[2], f[4], int(f[6]), int(f[8])), []
         elif line.startswith("#@ END") and current:
             path, sha, i, n = current
-            (stash / f"6789ecc2_{path.replace('/', '__')}.{i}").write_text("\n".join(buf) + "\n", encoding="utf-8")
+            (stash / f"f40d2b28_{path.replace('/', '__')}.{i}").write_text("\n".join(buf) + "\n", encoding="utf-8")
             files[path] = (sha, n)
             current = None
         elif current is not None and line.startswith("#|"):
@@ -45,7 +45,7 @@ def main():
         sys.exit("Nothing found to install - was the whole file pasted?")
     waiting, bad = 0, 0
     for path, (sha, n) in sorted(files.items()):
-        pieces = [stash / f"6789ecc2_{path.replace('/', '__')}.{i}" for i in range(1, n + 1)]
+        pieces = [stash / f"f40d2b28_{path.replace('/', '__')}.{i}" for i in range(1, n + 1)]
         if not all(p.exists() for p in pieces):
             have = sum(p.exists() for p in pieces)
             print(f"  waiting  {path}  ({have} of {n} pieces - run the other part(s))")
@@ -93,7 +93,7 @@ main()
 #@ HAS src/checklist.py 205b37b3d87a31835d67152c9f5d995c86fb36f4c06c5f5f1f61d106baa53e13
 #@ HAS src/collect.py 60df480238255a693ab3481021c573e05be7cb1c45d734f66c542f9bcdaa8b6f
 #@ HAS src/drafts.py dbef45cede05fb850dc22bccfaa0bde3ce7961da15e6d4710400df29b6b9b6e0
-#@ HAS src/gui.py aa384e07ea80aa62960a7668e3aa01a7da1a4e2b3d0c5e6631cc2e3444e52711
+#@ HAS src/gui.py 07ae24b3a39f7b2878c000e80c87e2dc57023b2c68e6589f986bbaa0986be6a5
 #@ HAS src/harden.py 3b37e0ca17cecab71b4ff7c581bdbf0a279b83838e4ce6750cdc81ababdf61c1
 #@ HAS src/rules.py 4f6db4a82c2e2a424778f5b6b71ee15246c16b5e9595f4287d44f638695f8438
 #@ HAS src/store.py 705cec739a6f67c732134f02e2ad8f231c12f91d9f36317475c63227c6615842
@@ -2777,7 +2777,7 @@ main()
 #|        lines += [f"  {stig} {vid} ({ver}) {title[:80]}" for stig, vid, ver, title, _ in report["no_entry"]]
 #|    return "\n".join(lines)
 #@ END
-#@ FILE src/gui.py SHA aa384e07ea80aa62960a7668e3aa01a7da1a4e2b3d0c5e6631cc2e3444e52711 CHUNK 1 OF 1
+#@ FILE src/gui.py SHA 07ae24b3a39f7b2878c000e80c87e2dc57023b2c68e6589f986bbaa0986be6a5 CHUNK 1 OF 1
 #|"""Tkinter user interface, in two modes (switch at the top):
 #|
 #|  Run an assessment   Assessment (collect -> import -> review -> write checklists), Hardening scripts
@@ -3103,10 +3103,19 @@ main()
 #|        self.canvas.pack(side="left", fill="both", expand=True)
 #|        self.inner = ttk.Frame(self.canvas)
 #|        self.window = self.canvas.create_window(0, 0, window=self.inner, anchor="nw")
-#|        self.canvas.bind("<Configure>", lambda e: self.layout())
-#|        self.inner.bind("<Configure>", lambda e: self.layout())
+#|        self._pending = None
+#|        self.canvas.bind("<Configure>", lambda e: self.schedule())
+#|        self.inner.bind("<Configure>", lambda e: self.schedule())
+#|
+#|    def schedule(self):
+#|        """Lay out once things settle. The inner frame is given a fixed height, so it gets no <Configure> of its
+#|        own when its content grows (text rewrapping, a list adding lines); the parts inside it do, as the room
+#|        they are given changes. bind_wheel() hooks those up too."""
+#|        if self._pending is None:
+#|            self._pending = self.after_idle(self.layout)
 #|
 #|    def layout(self):
+#|        self._pending = None
 #|        width, height, need = self.canvas.winfo_width(), self.canvas.winfo_height(), self.inner.winfo_reqheight()
 #|        self.canvas.itemconfigure(self.window, width=width, height=max(height, need))
 #|        self.canvas.configure(scrollregion=(0, 0, width, max(height, need)))
@@ -3117,11 +3126,14 @@ main()
 #|            self.canvas.yview_moveto(0)
 #|
 #|    def bind_wheel(self):
-#|        """Mouse wheel over the pane scrolls it (boxes that scroll themselves keep their own wheel)."""
+#|        """Mouse wheel over the pane scrolls it (boxes that scroll themselves keep their own wheel). Also re-lays
+#|        out the pane whenever a part inside it changes size."""
 #|        stack = [self.canvas]
 #|        while stack:
 #|            w = stack.pop()
 #|            stack += w.winfo_children()
+#|            if w is not self.canvas and w is not self.inner:
+#|                w.bind("<Configure>", lambda e: self.schedule(), add="+")
 #|            if not isinstance(w, (tk.Text, tk.Listbox, ttk.Treeview, ttk.Combobox, ttk.Scrollbar)):
 #|                w.bind("<MouseWheel>", self.wheel, add="+")
 #|
@@ -3135,12 +3147,14 @@ main()
 #|
 #|    Tk otherwise takes all of a shrink from the LAST pane, which can squeeze it to nothing. Dragging a divider
 #|    sets the new proportions. shares: each divider's position as a fraction of the whole (0-1).
+#|    first_min: the first pane's smallest size in pixels (or a function giving it), so a share that suits one
+#|    screen does not squeeze the pane to nothing on another (DPI scaling, a shorter window). Capped at 60%.
 #|    """
 #|
-#|    def __init__(self, paned, shares):
-#|        self.paned, self.shares = paned, list(shares)
+#|    def __init__(self, paned, shares, first_min=0):
+#|        self.paned, self.shares, self.first_min = paned, list(shares), first_min
 #|        paned.bind("<Configure>", lambda e: self.apply(), add="+")
-#|        paned.bind("<ButtonRelease-1>", lambda e: self.remember(), add="+")
+#|        paned.bind("<ButtonRelease-1>", lambda e: (self.remember(), self.apply()), add="+")
 #|
 #|    def total(self):
 #|        vertical = str(self.paned.cget("orient")) == "vertical"
@@ -3151,7 +3165,11 @@ main()
 #|        if total < 50:  # not laid out yet
 #|            return
 #|        for i in range(min(len(self.paned.panes()) - 1, len(self.shares))):
-#|            self.paned.sashpos(i, int(total * self.shares[i]))
+#|            pos = int(total * self.shares[i])
+#|            if i == 0 and self.first_min:
+#|                least = self.first_min() if callable(self.first_min) else self.first_min
+#|                pos = max(pos, min(least, int(total * 0.6)))
+#|            self.paned.sashpos(i, pos)
 #|
 #|    def remember(self):
 #|        total = self.total()
@@ -7051,8 +7069,9 @@ main()
 #|        paned = ttk.PanedWindow(self, orient="vertical")
 #|        paned.pack(fill="both", expand=True, padx=6, pady=6)
 #|        self.run_paned, self._roomy = paned, None
-#|        self.run_keeper = PaneKeeper(paned, [0.22])
 #|        dev = ttk.LabelFrame(paned, text=" Devices in this run - check each one is in the right group ")
+#|        # Never smaller than the filter bar, the buttons and 5 device rows, whatever the screen's scaling
+#|        self.run_keeper = PaneKeeper(paned, [0.3], first_min=dev.winfo_reqheight)
 #|        paned.add(dev, weight=0)  # a few rows (drag the divider for more); the review list gets the room
 #|        fb = ttk.Frame(dev)
 #|        fb.pack(fill="x", pady=(2, 2))
@@ -7078,7 +7097,7 @@ main()
 #|        self.warn_label.pack(side="left", padx=10)
 #|        df, self.dev_tree = make_tree(dev, [("host", "Device", 160), ("ip", "IP", 140), ("group", "Group", 150),
 #|                                            ("how", "Assigned by", 130), ("state", "Collection", 260),
-#|                                            ("cmds", "Commands", 100)], height=7, selectmode="extended")
+#|                                            ("cmds", "Commands", 100)], height=5, selectmode="extended")
 #|        df.pack(fill="both", expand=True)
 #|        color_tags(self.dev_tree, {"bad": "#ffd6d6", "nogroup": "#fff0c2"})
 #|        self.dev_tree.bind("<<TreeviewSelect>>", lambda e: self.show_dev_selection())
@@ -7313,7 +7332,7 @@ main()
 #|        roomy = ((self.app.run or {}).get("id"), nogroup > 0)
 #|        if roomy != self._roomy:
 #|            self._roomy = roomy
-#|            self.after(100, lambda: self.size_device_list(0.5 if nogroup else 0.22))
+#|            self.after(100, lambda: self.size_device_list(0.5 if nogroup else 0.3))
 #|        self.dev_summary.configure(
 #|            text=(f"{shown} of {total} shown.  " if shown != total else f"{total} devices:  ")
 #|            + f"{total - nogroup} in groups" + (f", {nogroup} NOT in a group" if nogroup else "")

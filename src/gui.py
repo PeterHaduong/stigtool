@@ -323,10 +323,19 @@ class ScrollFrame(ttk.Frame):
         self.canvas.pack(side="left", fill="both", expand=True)
         self.inner = ttk.Frame(self.canvas)
         self.window = self.canvas.create_window(0, 0, window=self.inner, anchor="nw")
-        self.canvas.bind("<Configure>", lambda e: self.layout())
-        self.inner.bind("<Configure>", lambda e: self.layout())
+        self._pending = None
+        self.canvas.bind("<Configure>", lambda e: self.schedule())
+        self.inner.bind("<Configure>", lambda e: self.schedule())
+
+    def schedule(self):
+        """Lay out once things settle. The inner frame is given a fixed height, so it gets no <Configure> of its
+        own when its content grows (text rewrapping, a list adding lines); the parts inside it do, as the room
+        they are given changes. bind_wheel() hooks those up too."""
+        if self._pending is None:
+            self._pending = self.after_idle(self.layout)
 
     def layout(self):
+        self._pending = None
         width, height, need = self.canvas.winfo_width(), self.canvas.winfo_height(), self.inner.winfo_reqheight()
         self.canvas.itemconfigure(self.window, width=width, height=max(height, need))
         self.canvas.configure(scrollregion=(0, 0, width, max(height, need)))
@@ -337,11 +346,14 @@ class ScrollFrame(ttk.Frame):
             self.canvas.yview_moveto(0)
 
     def bind_wheel(self):
-        """Mouse wheel over the pane scrolls it (boxes that scroll themselves keep their own wheel)."""
+        """Mouse wheel over the pane scrolls it (boxes that scroll themselves keep their own wheel). Also re-lays
+        out the pane whenever a part inside it changes size."""
         stack = [self.canvas]
         while stack:
             w = stack.pop()
             stack += w.winfo_children()
+            if w is not self.canvas and w is not self.inner:
+                w.bind("<Configure>", lambda e: self.schedule(), add="+")
             if not isinstance(w, (tk.Text, tk.Listbox, ttk.Treeview, ttk.Combobox, ttk.Scrollbar)):
                 w.bind("<MouseWheel>", self.wheel, add="+")
 
@@ -355,12 +367,14 @@ class PaneKeeper:
 
     Tk otherwise takes all of a shrink from the LAST pane, which can squeeze it to nothing. Dragging a divider
     sets the new proportions. shares: each divider's position as a fraction of the whole (0-1).
+    first_min: the first pane's smallest size in pixels (or a function giving it), so a share that suits one
+    screen does not squeeze the pane to nothing on another (DPI scaling, a shorter window). Capped at 60%.
     """
 
-    def __init__(self, paned, shares):
-        self.paned, self.shares = paned, list(shares)
+    def __init__(self, paned, shares, first_min=0):
+        self.paned, self.shares, self.first_min = paned, list(shares), first_min
         paned.bind("<Configure>", lambda e: self.apply(), add="+")
-        paned.bind("<ButtonRelease-1>", lambda e: self.remember(), add="+")
+        paned.bind("<ButtonRelease-1>", lambda e: (self.remember(), self.apply()), add="+")
 
     def total(self):
         vertical = str(self.paned.cget("orient")) == "vertical"
@@ -371,7 +385,11 @@ class PaneKeeper:
         if total < 50:  # not laid out yet
             return
         for i in range(min(len(self.paned.panes()) - 1, len(self.shares))):
-            self.paned.sashpos(i, int(total * self.shares[i]))
+            pos = int(total * self.shares[i])
+            if i == 0 and self.first_min:
+                least = self.first_min() if callable(self.first_min) else self.first_min
+                pos = max(pos, min(least, int(total * 0.6)))
+            self.paned.sashpos(i, pos)
 
     def remember(self):
         total = self.total()
@@ -4271,8 +4289,9 @@ class AssessTab(ttk.Frame):
         paned = ttk.PanedWindow(self, orient="vertical")
         paned.pack(fill="both", expand=True, padx=6, pady=6)
         self.run_paned, self._roomy = paned, None
-        self.run_keeper = PaneKeeper(paned, [0.22])
         dev = ttk.LabelFrame(paned, text=" Devices in this run - check each one is in the right group ")
+        # Never smaller than the filter bar, the buttons and 5 device rows, whatever the screen's scaling
+        self.run_keeper = PaneKeeper(paned, [0.3], first_min=dev.winfo_reqheight)
         paned.add(dev, weight=0)  # a few rows (drag the divider for more); the review list gets the room
         fb = ttk.Frame(dev)
         fb.pack(fill="x", pady=(2, 2))
@@ -4298,7 +4317,7 @@ class AssessTab(ttk.Frame):
         self.warn_label.pack(side="left", padx=10)
         df, self.dev_tree = make_tree(dev, [("host", "Device", 160), ("ip", "IP", 140), ("group", "Group", 150),
                                             ("how", "Assigned by", 130), ("state", "Collection", 260),
-                                            ("cmds", "Commands", 100)], height=7, selectmode="extended")
+                                            ("cmds", "Commands", 100)], height=5, selectmode="extended")
         df.pack(fill="both", expand=True)
         color_tags(self.dev_tree, {"bad": "#ffd6d6", "nogroup": "#fff0c2"})
         self.dev_tree.bind("<<TreeviewSelect>>", lambda e: self.show_dev_selection())
@@ -4533,7 +4552,7 @@ class AssessTab(ttk.Frame):
         roomy = ((self.app.run or {}).get("id"), nogroup > 0)
         if roomy != self._roomy:
             self._roomy = roomy
-            self.after(100, lambda: self.size_device_list(0.5 if nogroup else 0.22))
+            self.after(100, lambda: self.size_device_list(0.5 if nogroup else 0.3))
         self.dev_summary.configure(
             text=(f"{shown} of {total} shown.  " if shown != total else f"{total} devices:  ")
             + f"{total - nogroup} in groups" + (f", {nogroup} NOT in a group" if nogroup else "")
