@@ -14,7 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 FILES = ["main.py", "make_bundle.py", "README.md", "src/assess.py", "src/checklist.py", "src/collect.py",
-         "src/drafts.py", "src/gui.py", "src/harden.py", "src/rules.py", "src/store.py", "tests/test_core.py", "tests/test_drafts.py",
+         "src/drafts.py", "src/gui.py", "src/llm_handoff.py", "src/harden.py", "src/rules.py", "src/store.py", "tests/test_core.py", "tests/test_drafts.py", "tests/test_llm_handoff.py",
          "tests/platform_samples.py"]
 # Optional files: shipped when present (the exported rule library).
 OPTIONAL = ["rules/stigtool_rules.json"]

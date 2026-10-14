@@ -1,4 +1,4 @@
-"""STIGTOOL installer - part 1 of 1 (bundle 008cdcca).
+"""STIGTOOL installer - part 1 of 1 (bundle d6b7cc35).
 
 HOW TO USE: save this text as a .py file and run it:   python <this file>
   - Run every part of the bundle (1 in total), in any order.
@@ -36,7 +36,7 @@ def main():
             current, buf = (f[2], f[4], int(f[6]), int(f[8])), []
         elif line.startswith("#@ END") and current:
             path, sha, i, n = current
-            (stash / f"008cdcca_{path.replace('/', '__')}.{i}").write_text("\n".join(buf) + "\n", encoding="utf-8")
+            (stash / f"d6b7cc35_{path.replace('/', '__')}.{i}").write_text("\n".join(buf) + "\n", encoding="utf-8")
             files[path] = (sha, n)
             current = None
         elif current is not None and line.startswith("#|"):
@@ -45,7 +45,7 @@ def main():
         sys.exit("Nothing found to install - was the whole file pasted?")
     waiting, bad = 0, 0
     for path, (sha, n) in sorted(files.items()):
-        pieces = [stash / f"008cdcca_{path.replace('/', '__')}.{i}" for i in range(1, n + 1)]
+        pieces = [stash / f"d6b7cc35_{path.replace('/', '__')}.{i}" for i in range(1, n + 1)]
         if not all(p.exists() for p in pieces):
             have = sum(p.exists() for p in pieces)
             print(f"  waiting  {path}  ({have} of {n} pieces - run the other part(s))")
@@ -87,18 +87,20 @@ main()
 # ---------------------------------------------------------------- payload (do not edit below)
 
 #@ HAS main.py 8ab08b56d237926575fea933200ff6a3512516dcdb3480265899e9d3a9cd0f94
-#@ HAS make_bundle.py 96afd027344b6418198835a8087f8961c4e1ae5d2821959b6ca5e4dbb45027f7
-#@ HAS README.md 19cf13239b395bfd339e10a506c1b6dc33b2bdfcac0c49e848dd83ca8439d0bc
+#@ HAS make_bundle.py 74e98214676415ff76e57bf888db9d88a10a915583b2175ec28d31568b5d530c
+#@ HAS README.md 4eb9a3bfa1f68c7bec27dda946716d29dcb55cf9036e43430675a9ea1f313583
 #@ HAS src/assess.py 6cae6bff1c899c218625b47a9d5ab2d43901c53e686f23c19065cee9c695a15e
 #@ HAS src/checklist.py 205b37b3d87a31835d67152c9f5d995c86fb36f4c06c5f5f1f61d106baa53e13
 #@ HAS src/collect.py 60df480238255a693ab3481021c573e05be7cb1c45d734f66c542f9bcdaa8b6f
 #@ HAS src/drafts.py b8332a22c0b360677ae96d62166ffc45a0520f887e604cbc4bd827a68c3f672b
-#@ HAS src/gui.py 10e5c6bb610ed35384aab17c1d6876c3812aed38f97f448f834737756848b3c9
+#@ HAS src/gui.py d0374ccec6c33051f6c86559b6a4372ef4e12c5fa9585bee3df3d4cce65d1bd9
+#@ HAS src/llm_handoff.py 0e81346941571a9fac9f0ec16111c7c1a557025afcaa5011c5786f14fe153867
 #@ HAS src/harden.py 4355733216754660dbbdae4db8e3b9d89af6c6f6294b7b5edb3b340db9615071
 #@ HAS src/rules.py 6bb7a1e8f3301c94180d1fe3e77083558687c4f28589e6f121741333ebba921f
 #@ HAS src/store.py 969626c0c338a6461707215b2e4d363f85d9bde23c7d898e334e5d1f0c0e2edd
 #@ HAS tests/test_core.py 7799ea5ed198537a4199dbe645a553f27adb2f76007290cb87ac6774754b012b
 #@ HAS tests/test_drafts.py 5f76ada15951c7df445cea793b999d0ae70747f72c02c9b80549c45daf9078bc
+#@ HAS tests/test_llm_handoff.py 873b787c934ccd2896341788891772f5a2b8202730247cb1691a27d4083af27a
 #@ HAS tests/platform_samples.py 9d1bcaa7e174df3774be8a9029287c2d7d11dad3306395cf6a3b5f866fc2e9ee
 #@ HAS rules/stigtool_rules.json 5a309ccf4a5781d11ba69a023f9825c882d29e77124d4dbb2cb99562ff3a55e5
 #@ FILE main.py SHA 8ab08b56d237926575fea933200ff6a3512516dcdb3480265899e9d3a9cd0f94 CHUNK 1 OF 1
@@ -160,7 +162,7 @@ main()
 #|if __name__ == "__main__":
 #|    sys.exit(main())
 #@ END
-#@ FILE make_bundle.py SHA 96afd027344b6418198835a8087f8961c4e1ae5d2821959b6ca5e4dbb45027f7 CHUNK 1 OF 1
+#@ FILE make_bundle.py SHA 74e98214676415ff76e57bf888db9d88a10a915583b2175ec28d31568b5d530c CHUNK 1 OF 1
 #|"""Pack the whole program into self-installing .py file(s) that can be moved by copy and paste.
 #|
 #|    python make_bundle.py              -> transfer/STIGTOOL_install.py (one file)
@@ -177,7 +179,7 @@ main()
 #|
 #|ROOT = Path(__file__).resolve().parent
 #|FILES = ["main.py", "make_bundle.py", "README.md", "src/assess.py", "src/checklist.py", "src/collect.py",
-#|         "src/drafts.py", "src/gui.py", "src/harden.py", "src/rules.py", "src/store.py", "tests/test_core.py", "tests/test_drafts.py",
+#|         "src/drafts.py", "src/gui.py", "src/llm_handoff.py", "src/harden.py", "src/rules.py", "src/store.py", "tests/test_core.py", "tests/test_drafts.py", "tests/test_llm_handoff.py",
 #|         "tests/platform_samples.py"]
 #|# Optional files: shipped when present (the exported rule library).
 #|OPTIONAL = ["rules/stigtool_rules.json"]
@@ -332,7 +334,7 @@ main()
 #|if __name__ == "__main__":
 #|    build(int(sys.argv[1]) if len(sys.argv) > 1 else None)
 #@ END
-#@ FILE README.md SHA 19cf13239b395bfd339e10a506c1b6dc33b2bdfcac0c49e848dd83ca8439d0bc CHUNK 1 OF 1
+#@ FILE README.md SHA 4eb9a3bfa1f68c7bec27dda946716d29dcb55cf9036e43430675a9ea1f313583 CHUNK 1 OF 1
 #|# STIG Group Assessment Tool
 #|
 #|Builds group STIG checklists for network devices from SolarWinds show-command output.
@@ -612,6 +614,33 @@ main()
 #|- BPDU Guard, unknown-unicast blocking, IP Source Guard and storm control on access ports.
 #|- User-facing ports must be access ports.
 #|- Every live port must be labelled.
+#|
+#|## Asking an AI to write a rule's conditions
+#|
+#|In the rule editor, **Ask an AI to write the conditions...** builds a prompt you paste into an AI your
+#|organisation approves. Nothing is sent from the tool.
+#|
+#|1. Say in plain words what the rule should check. Optionally paste an example that should **pass** (e.g. a
+#|   good interface) and one that should **fail**. Paste enough config for the whole rule, including any global
+#|   lines it needs (e.g. `dot1x system-auth-control`).
+#|2. **Copy prompt.** It contains:
+#|   - every condition option, generated from the rule engine so it is always current
+#|   - your team's port roles
+#|   - three worked example rules
+#|   - the STIG check and fix text
+#|   - the rule as it is today
+#|   - your goal and examples
+#|   - the test-box sample output, if ticked
+#|   Passwords, secrets, keys and SNMP communities are masked. Hostnames, IP addresses and descriptions are
+#|   **not**, so use **Preview prompt** before sending it anywhere.
+#|3. Paste the AI's whole answer into box 2 and click **Check answer**. The answer is JSON; extra chat around it
+#|   is ignored. The tool then:
+#|   - lists each condition in plain words
+#|   - flags anything the engine cannot run (bad regex, unknown role, unknown field)
+#|   - runs your pass / fail examples and the AI's own samples as tests
+#|4. **Replace** or **Add to** the rule's conditions. Your examples become tests, and so do the AI's samples
+#|   (named `AI: ...`). The AI's explanation goes into Reviewer guidance. Nothing is saved until you click Save.
+#|   The rule is still a draft and still needs passing tests to be activated.
 #|
 #|## Starter drafts (a head start on the rules)
 #|
@@ -2811,7 +2840,7 @@ main()
 #|        lines += [f"  {stig} {vid} ({ver}) {title[:80]}" for stig, vid, ver, title, _ in report["no_entry"]]
 #|    return "\n".join(lines)
 #@ END
-#@ FILE src/gui.py SHA 10e5c6bb610ed35384aab17c1d6876c3812aed38f97f448f834737756848b3c9 CHUNK 1 OF 1
+#@ FILE src/gui.py SHA d0374ccec6c33051f6c86559b6a4372ef4e12c5fa9585bee3df3d4cce65d1bd9 CHUNK 1 OF 1
 #|"""Tkinter user interface, in two modes (switch at the top):
 #|
 #|  Run an assessment   Assessment (collect -> import -> review -> write checklists), Hardening scripts
@@ -2838,6 +2867,7 @@ main()
 #|import collect
 #|import drafts
 #|import harden
+#|import llm_handoff
 #|import rules as engine
 #|import store
 #|from checklist import LABEL_TO_STATUS, STATUS_LABELS, STATUSES
@@ -5096,6 +5126,13 @@ main()
 #|        self.cmd_text = config_wrap(tk.Text(f, height=3, width=50, font=MONO))
 #|        self.cmd_text.pack(fill="x")
 #|        self.cmd_text.bind("<KeyRelease>", lambda e: self.commands_changed())
+#|        ai = ttk.Frame(f)
+#|        ai.pack(fill="x", pady=(4, 0))
+#|        ttk.Button(ai, text="Ask an AI to write the conditions...", command=lambda: AiHandoffDialog(self)).pack(
+#|            side="left")
+#|        fit_text(ttk.Label(ai, foreground="#555", text="Copies a prompt for an approved AI; paste its answer back "
+#|                                                       "and it is checked before it is used.")).pack(
+#|            side="left", fill="x", expand=True, padx=6)
 #|
 #|        self.compact_var = tk.BooleanVar(value=store.load_my_view().get("compact_conditions", False))
 #|        self.pass_box, self.pass_mode = self._condition_block(
@@ -5691,6 +5728,200 @@ main()
 #|# ---------------------------------------------------------------- share a rule with other controls
 #|
 #|SIMILAR_CHECK = 80  # % of check-text words in common that makes a control a likely match
+#|
+#|
+#|class AiHandoffDialog(tk.Toplevel):
+#|    """Rule editor: copy a prompt for another AI to write the conditions, then read its answer back in.
+#|
+#|    Nothing is sent from the tool. The person pastes the prompt into whichever AI their organisation allows,
+#|    and the answer is checked (every condition must be one the engine can run) before it touches the rule."""
+#|
+#|    def __init__(self, editor):
+#|        super().__init__(editor)
+#|        self.editor, self.answer = editor, None
+#|        self.title(f"Ask an AI - {editor.control['vuln_id']} {editor.control['rule_ver']}")
+#|        self.transient(editor)
+#|        maximize(self, "1100x860")
+#|        tk.Label(self, bg="#fff4ce", fg="#5c4300", anchor="w", justify="left", padx=8, pady=4, wraplength=1050,
+#|                 text="Nothing is sent from this tool: it copies a prompt, you paste it into an AI your "
+#|                      "organisation approves. Passwords, keys and SNMP communities are masked, but hostnames, "
+#|                      "IP addresses and descriptions are not - check the prompt (Preview) before sending it, and "
+#|                      "use made-up examples if the output is sensitive.").pack(fill="x", padx=8, pady=(8, 0))
+#|
+#|        one = ttk.LabelFrame(self, text=" 1. Describe what you want and copy the prompt ", padding=6)
+#|        one.pack(fill="both", expand=True, padx=8, pady=6)
+#|        ttk.Label(one, text="What should the rule check? Plain words, e.g. 'every port that is not an uplink, "
+#|                            "downlink or trusted port must have dot1x, or be shut down in vlan 2':").pack(anchor="w")
+#|        self.goal = tk.Text(one, height=3, wrap="word", font=("Segoe UI", 10))
+#|        self.goal.pack(fill="x", pady=(2, 6))
+#|        ex = ttk.Frame(one)
+#|        ex.pack(fill="both", expand=True)
+#|        ex.columnconfigure(0, weight=1)
+#|        ex.columnconfigure(1, weight=1)
+#|        ex.rowconfigure(1, weight=1)
+#|        ttk.Label(ex, text="Example that should PASS (e.g. a good interface):").grid(row=0, column=0, sticky="w")
+#|        ttk.Label(ex, text="Example that should FAIL (e.g. a bad interface):").grid(row=0, column=1, sticky="w",
+#|                                                                                    padx=(8, 0))
+#|        self.good = tk.Text(ex, height=7, wrap="none", font=MONO)
+#|        self.good.grid(row=1, column=0, sticky="nsew")
+#|        self.bad = tk.Text(ex, height=7, wrap="none", font=MONO)
+#|        self.bad.grid(row=1, column=1, sticky="nsew", padx=(8, 0))
+#|        opts = ttk.Frame(one)
+#|        opts.pack(fill="x", pady=(6, 0))
+#|        editor.store_sample()
+#|        self.samples = {c: t for c, t in editor.sample.items() if c in editor.commands() and t.strip()}
+#|        lines = sum(len(engine.split_lines(t)) for t in self.samples.values())
+#|        self.with_sample = tk.BooleanVar(value=bool(self.samples))
+#|        cb = ttk.Checkbutton(opts, variable=self.with_sample,
+#|                             text=f"Include the sample output from the test box ({lines} lines)" if self.samples
+#|                             else "Include sample output (none in the test box yet)")
+#|        cb.pack(side="left")
+#|        if not self.samples:
+#|            cb.state(["disabled"])
+#|        self.mask = tk.BooleanVar(value=True)
+#|        ttk.Checkbutton(opts, text="Mask passwords / keys / communities", variable=self.mask).pack(side="left",
+#|                                                                                                padx=12)
+#|        ttk.Button(opts, text="Preview prompt...", command=self.preview).pack(side="right")
+#|        ttk.Button(opts, text="Copy prompt", style="Accent.TButton", command=self.copy).pack(side="right", padx=6)
+#|
+#|        two = ttk.LabelFrame(self, text=" 2. Paste the AI's answer and check it ", padding=6)
+#|        two.pack(fill="both", expand=True, padx=8, pady=(0, 6))
+#|        self.reply = tk.Text(two, height=7, wrap="none", font=MONO)
+#|        self.reply.pack(fill="both", expand=True)
+#|        row = ttk.Frame(two)
+#|        row.pack(fill="x", pady=4)
+#|        ttk.Button(row, text="Check answer", command=self.check).pack(side="left")
+#|        self.add_mine = tk.BooleanVar(value=True)
+#|        self.add_ai_tests = tk.BooleanVar(value=True)
+#|        self.w_mine = ttk.Checkbutton(row, text="Save my pass / fail examples as tests", variable=self.add_mine)
+#|        self.w_mine.pack(side="left", padx=(12, 0))
+#|        ttk.Checkbutton(row, text="Add the AI's test samples (named 'AI: ...')",
+#|                        variable=self.add_ai_tests).pack(side="left", padx=(12, 0))
+#|        self.result = ScrolledText(two, height=9, wrap="word", font=("Segoe UI", 10))
+#|        self.result.pack(fill="both", expand=True)
+#|        self.result.tag_configure("bad", foreground="#b00020")
+#|        self.result.tag_configure("head", font=("Segoe UI", 10, "bold"))
+#|        text_set(self.result, "The checked answer appears here: each condition in plain words, and anything "
+#|                              "that is wrong with it.", readonly=True)
+#|
+#|        b = ttk.Frame(self)
+#|        b.pack(fill="x", padx=8, pady=(0, 8))
+#|        self.replace_btn = ttk.Button(b, text="Replace the rule's conditions", style="Accent.TButton",
+#|                                      command=lambda: self.apply(replace=True))
+#|        self.add_btn = ttk.Button(b, text="Add to the rule's conditions", command=lambda: self.apply(replace=False))
+#|        for w in (self.replace_btn, self.add_btn):
+#|            w.pack(side="left", padx=(0, 6))
+#|            w.state(["disabled"])
+#|        ttk.Button(b, text="Close", command=self.destroy).pack(side="right")
+#|        self.bind("<Escape>", lambda e: self.destroy())
+#|
+#|    def prompt(self):
+#|        ed = self.editor
+#|        platform = drafts.PLATFORM_LABEL.get(drafts.platform_of(ed.stig_id) or "", "")
+#|        return llm_handoff.build_prompt(ed.control, ed.collect(), platform, text_get(self.goal),
+#|                                        text_get(self.good), text_get(self.bad),
+#|                                        self.samples if self.with_sample.get() else None, mask=self.mask.get())
+#|
+#|    def copy(self):
+#|        text = self.prompt()
+#|        self.clipboard_clear()
+#|        self.clipboard_append(text)
+#|        messagebox.showinfo("Prompt copied", f"Copied {len(text):,} characters. Paste it into the AI, then paste "
+#|                                             "its whole answer into box 2 and click 'Check answer'.", parent=self)
+#|
+#|    def preview(self):
+#|        win = tk.Toplevel(self)
+#|        win.title("Prompt preview")
+#|        win.geometry("1000x760")
+#|        t = ScrolledText(win, wrap="word", font=MONO)
+#|        t.pack(fill="both", expand=True)
+#|        text_set(t, self.prompt(), readonly=True)
+#|
+#|    def examples_as_tests(self, commands):
+#|        """My pass / fail examples, as tests of the rule's only command (several commands: cannot tell which)."""
+#|        if len(commands) != 1:
+#|            return []
+#|        return [{"name": name, "expected": expected, "outputs": {commands[0]: text}}
+#|                for name, expected, text in (("My example (should pass)", "not_a_finding", text_get(self.good)),
+#|                                             ("My example (should fail)", "open", text_get(self.bad)))
+#|                if text.strip()]
+#|
+#|    def check(self):
+#|        self.answer = None
+#|        for w in (self.replace_btn, self.add_btn):
+#|            w.state(["disabled"])
+#|        t = self.result
+#|        t.configure(state="normal")
+#|        t.delete("1.0", "end")
+#|        try:
+#|            answer, problems = llm_handoff.parse_answer(text_get(self.reply))
+#|        except ValueError as e:
+#|            t.insert("end", f"Cannot use this answer: {e}\n", "bad")
+#|            t.configure(state="disabled")
+#|            return
+#|        t.insert("end", "Commands: " + ", ".join(answer["commands"]) + "\n", "head")
+#|        for key, mode, label in (("pass_conditions", "pass_mode", "NOT A FINDING when"),
+#|                                 ("na_conditions", "na_mode", "NOT APPLICABLE when")):
+#|            if answer[key]:
+#|                t.insert("end", f"\n{label} {answer[mode]} of:\n", "head")
+#|                for n, c in enumerate(answer[key], 1):
+#|                    t.insert("end", f"  {n}. {engine.describe(c)}\n")
+#|        if answer["explanation"]:
+#|            t.insert("end", "\nThe AI says: ", "head")
+#|            t.insert("end", answer["explanation"] + "\n")
+#|        trial = {"commands": answer["commands"], "pass_logic": {"mode": answer["pass_mode"],
+#|                                                                "conditions": answer["pass_conditions"]},
+#|                 "na_enabled": bool(answer["na_conditions"]),
+#|                 "na_logic": {"mode": answer["na_mode"], "conditions": answer["na_conditions"]},
+#|                 "tests": self.examples_as_tests(answer["commands"]) + answer["tests"]}
+#|        if trial["tests"]:
+#|            t.insert("end", "\nTried against the examples and the AI's samples:\n", "head")
+#|            for test, actual, ok in engine.run_tests(trial):
+#|                t.insert("end", f"  {'PASS' if ok else 'FAIL'}  {test['name']}: expected "
+#|                                f"{STATUS_LABELS[test['expected']]}, the rule gives {STATUS_LABELS[actual]}\n",
+#|                         () if ok else ("bad",))
+#|        if problems:
+#|            t.insert("end", "\nProblems (fix them in the AI or in the editor after using it):\n", "head")
+#|            for p in problems:
+#|                t.insert("end", f"  - {p}\n", "bad")
+#|        t.configure(state="disabled")
+#|        self.answer = answer
+#|        self.w_mine.state(["!disabled"] if len(answer["commands"]) == 1 else ["disabled"])
+#|        if not self.editor.readonly:
+#|            for w in (self.replace_btn, self.add_btn):
+#|                w.state(["!disabled"])
+#|
+#|    def apply(self, replace):
+#|        ed, a = self.editor, self.answer
+#|        if not a:
+#|            return
+#|        r = ed.r
+#|        commands = ed.commands() + [c for c in a["commands"] if c not in ed.commands()]
+#|        if replace:
+#|            r["pass_logic"] = {"mode": a["pass_mode"], "conditions": a["pass_conditions"]}
+#|            r["na_logic"] = {"mode": a["na_mode"], "conditions": a["na_conditions"]}
+#|            ed.pass_mode.set(a["pass_mode"])
+#|            ed.na_mode.set(a["na_mode"])
+#|            ed.na_var.set(bool(a["na_conditions"]))
+#|        else:
+#|            r["pass_logic"]["conditions"] += a["pass_conditions"]
+#|            r["na_logic"]["conditions"] += a["na_conditions"]
+#|            if a["na_conditions"]:
+#|                ed.na_var.set(True)
+#|        tests = self.examples_as_tests(a["commands"]) if self.add_mine.get() else []
+#|        tests += [{**t, "name": f"AI: {t['name']}"} for t in a["tests"]] if self.add_ai_tests.get() else []
+#|        for t in tests:
+#|            r["tests"].append({**t, "saved_at": store.now(), "saved_by": store.current_user()})
+#|        if a["explanation"]:
+#|            notes = text_get(ed.notes_text).strip()
+#|            text_set(ed.notes_text, (notes + "\n\n" if notes else "") + "AI notes: " + a["explanation"])
+#|        text_set(ed.cmd_text, "\n".join(commands))
+#|        ed.commands_changed()
+#|        ed.run_all_tests()
+#|        self.destroy()
+#|        messagebox.showinfo("Conditions added", "The AI's conditions are in the editor (not saved yet). Check "
+#|                                                "each one against the STIG text and the tests, then Save.",
+#|                            parent=ed)
 #|
 #|
 #|class ShareDialog(tk.Toplevel):
@@ -7932,6 +8163,294 @@ main()
 #|        sel = self.files.selection()
 #|        if sel:
 #|            text_set(self.preview, self.paths[sel[0]].read_text(encoding="utf-8"), readonly=True)
+#@ END
+#@ FILE src/llm_handoff.py SHA 0e81346941571a9fac9f0ec16111c7c1a557025afcaa5011c5786f14fe153867 CHUNK 1 OF 1
+#|"""Hand a rule to another AI (LLM) to write its conditions, and read its answer back.
+#|
+#|build_prompt() writes one self-contained prompt: what the tool can check (generated from the rule engine, so it
+#|always matches what the engine supports), the team's port roles, worked examples, the STIG check text, the
+#|rule's commands and sample output (secrets masked), and the reviewer's goal and good / bad examples. The AI must
+#|answer with one JSON object. parse_answer() reads that answer back, fills in defaults and checks every
+#|condition, so nothing reaches the rule editor that the engine cannot run.
+#|
+#|JSON, not CSV: rule texts are regular expressions full of commas, quotes and | characters.
+#|"""
+#|import json
+#|import re
+#|
+#|import rules as engine
+#|
+#|FORMAT = "stigtool-conditions-1"
+#|
+#|# Values that must never leave the building in a prompt. Each pattern keeps the keyword and masks what follows.
+#|SECRET_RES = [
+#|    # enable secret 9 X / username u privilege 15 secret 9 X / password 7 X / snmp ... password X
+#|    re.compile(r"(?im)((?<!no )\b(?:secret|password)[ \t]+(?:level[ \t]+\d+[ \t]+)?(?:\d{1,2}[ \t]+(?=\S))?)\S+"),
+#|    # key chains / tacacs / radius:  key 7 X, key-string 7 X, server-key X, pre-shared-key X (not 'key chain N')
+#|    re.compile(r"(?im)^([ \t]*(?:key|key-string|server-key|pre-shared-key)[ \t]+(?!chain\b)(?!\d+[ \t]*$)(?:\d{1,2}[ \t]+(?=\S))?)\S+"),
+#|    re.compile(r"(?im)^([ \t]*(?:tacacs|radius)-server[ \t]+(?:host[ \t]+\S+[ \t]+.*?)?key[ \t]+(?:\d{1,2}[ \t]+(?=\S))?)\S+"),
+#|    # ntp authentication-key 1 md5 X 7 / hmac-sha2-256 X
+#|    re.compile(r"(?im)(\bauthentication-key[ \t]+\d+[ \t]+\S+[ \t]+)\S+"),
+#|    re.compile(r"(?im)^([ \t]*snmp-server community[ \t]+)\S+"),
+#|    # snmp-server user U G v3 auth sha X priv aes 256 Y (NX-OS: auth sha 0x.. priv aes-128 0x.. / priv 0x..)
+#|    re.compile(r"(?im)(\b(?:auth|priv)[ \t]+(?:md5|sha\S*|aes(?:-\d+)?(?:[ \t]+\d+)?|des|3des)[ \t]+)\S+"),
+#|    re.compile(r"(?im)(\bpriv[ \t]+)0x\S+"),
+#|    re.compile(r"(?im)(\bisakmp[ \t]+key[ \t]+(?:\d[ \t]+)?)\S+"),
+#|]
+#|
+#|
+#|def redact(text):
+#|    """Mask passwords, secrets, keys and SNMP communities. A best effort: the person still reviews the prompt."""
+#|    for rx in SECRET_RES:
+#|        text = rx.sub(lambda m: m.group(1) + "<MASKED>", text)
+#|    return text
+#|
+#|
+#|# ---------------------------------------------------------------- the prompt
+#|
+#|def reference():
+#|    """What a condition can say - generated from the engine's own lists."""
+#|    roles = "\n".join(f"    role:{name:<10} interface description starts with {' / '.join(engine.role_words(name))}"
+#|                      for name in engine.PORT_ROLES)
+#|    checks = "\n".join(f'    "{k}": {v}' for k, v in engine.CHECKS.items())
+#|    ops = ", ".join(f'"{k}" ({v})' for k, v in engine.OP_WORDS.items())
+#|    return f"""(Values below are written as JSON strings, so a regex backslash appears doubled: \\\\s means \\s.)
+#|
+#|HOW THE TOOL EVALUATES A RULE
+#|- A rule lists the show commands to collect, then NOT A FINDING conditions combined with "ALL" (AND) or "ANY" (OR).
+#|  If they are not met the result is OPEN.
+#|- Optional NOT APPLICABLE conditions (also ALL / ANY) are checked first; if they are met the result is NOT APPLICABLE.
+#|- Missing, failed or rejected command output ("% Invalid input") always gives NOT REVIEWED. Never design a
+#|  condition that passes because something is absent from output that was not collected.
+#|- Matching is line by line on the raw text output, using Python regular expressions where a regex is asked for.
+#|
+#|A CONDITION is a JSON object with these fields:
+#|  "command"      exactly one of the rule's commands - which output to look in.
+#|  "scope"        "all"   = {engine.SCOPES['all']}
+#|                 "every" = every SECTION found must pass (the usual choice for interfaces, vty lines...)
+#|                 "any"   = at least one SECTION must pass
+#|  A SECTION is a line plus the lines under it that are indented deeper (stops at the first line that is not
+#|  indented deeper, e.g. "!" or the next "interface ..."). This is how IOS-XE / NX-OS configuration is laid out.
+#|  "section"      (scope every / any) text that finds the section FIRST lines, e.g. "interface" or "line vty".
+#|  "section_how"  how "section" matches the first line: {', '.join(f'"{h}"' for h in engine.HOWS)}.
+#|                 Useful regexes: front-panel switch ports on IOS-XE (no Vlan / Loopback / Port-channel /
+#|                 AppGigabitEthernet): "^interface (?!AppGig)\\\\S*(Ethernet|GigE)\\\\d"; NX-OS: "^interface Ethernet\\\\d".
+#|  "only"         list of filters; a section is checked only if it matches EVERY one (searched in the first line
+#|                 and the body).
+#|  "exclude"      list of filters; a section is skipped if it matches ANY one.
+#|                 A filter is one of:
+#|                   "text"        a line STARTING with the text (after indentation), so "shutdown" does not match
+#|                                 "no shutdown"
+#|                   "re:REGEX"    a line matching the regex, e.g. "re:^\\\\s*shutdown\\\\s*$"
+#|                   "role:NAMES"  a port role (or several, comma separated: "role:uplink, downlink, trusted")
+#|  "if_none"      "pass" or "fail": the result when no section is found (after only / exclude).
+#|  "check"        what must be true of the section body (scope every / any) or of the whole output (scope all):
+#|{checks}
+#|                 has / lacks / number / count look at single lines. For scope every / any they look only at
+#|                 the section BODY (not its first line). pattern / no_pattern search the text as one block
+#|                 (multi-line regex, ^ and $ match at each line).
+#|  "text"         what to look for.
+#|  "how"          how "text" matches a line: {', '.join(f'"{h}"' for h in engine.HOWS)}.
+#|                 "contains" = anywhere in the line, "starts with" = after indentation, "whole line" = the whole
+#|                 line apart from indentation and trailing spaces, "regex" = Python regex searched in the line.
+#|                 Not used by pattern / no_pattern (always regex).
+#|  "ignore_case"  true / false.
+#|  "op", "value"  for "number" and "count" only: op is one of {ops}; value is a number.
+#|                 "number" reads the first number after the matched text on each matching line, and every
+#|                 matching line must satisfy the comparison; no matching line = fail.
+#|                 "count" compares how many lines match.
+#|  "text" may also be "role:NAME" with check "has" to require a description in that role.
+#|
+#|PORT ROLES (this team's interface-description keywords; a port with no matching description has no role):
+#|{roles}
+#|    role:any        any of the above (any labelled port)
+#|"""
+#|
+#|
+#|def _answer_condition(cond):
+#|    """A stored condition in the answer format (only / exclude as lists, defaults left out)."""
+#|    c = {**engine.NEW_CONDITION, **cond}
+#|    out = {"command": c["command"], "scope": c["scope"]}
+#|    if c["scope"] != "all":
+#|        out.update(section=c["section"], section_how=c["section_how"],
+#|                   only=engine.filter_lines(c.get("only")), exclude=engine.filter_lines(c["exclude"]),
+#|                   if_none=c["if_none"])
+#|    out.update(check=c["check"], text=c["text"])
+#|    if c["check"] not in ("pattern", "no_pattern"):
+#|        out["how"] = c["how"]
+#|    if c["ignore_case"]:
+#|        out["ignore_case"] = True
+#|    if c["check"] in ("number", "count"):
+#|        out.update(op=c["op"], value=c["value"])
+#|    return out
+#|
+#|
+#|def answer_for_rule(rule, explanation=""):
+#|    """The rule's logic in the answer format (used for the examples and for 'the rule today')."""
+#|    na = (rule.get("na_logic") or {}) if rule.get("na_enabled") else {}
+#|    return {"format": FORMAT, "commands": list(rule.get("commands") or []),
+#|            "pass_mode": (rule.get("pass_logic") or {}).get("mode", "ALL"),
+#|            "pass_conditions": [_answer_condition(c) for c in (rule.get("pass_logic") or {}).get("conditions", [])],
+#|            "na_mode": na.get("mode", "ALL"),
+#|            "na_conditions": [_answer_condition(c) for c in na.get("conditions", [])],
+#|            "tests": [], "explanation": explanation}
+#|
+#|
+#|def _examples():
+#|    import drafts  # late: drafts imports store / harden, which the prompt does not otherwise need
+#|    lib = drafts.LIBRARY["IOSXE_SW"]
+#|    picks = [("CISC-ND-000720", "Timeouts: numbers in sections, plus a line that must not exist anywhere."),
+#|             ("CISC-L2-000130", "Port roles: trust on every uplink and on nothing else."),
+#|             ("CISC-L2-000020", "Either / or per port: every port that is not an uplink, downlink or trusted "
+#|                                "port runs 802.1x (conditions 1-2) or is shut down in the parking VLAN "
+#|                                "(condition 3, which skips ports that have 802.1x); condition 4 catches open "
+#|                                "authentication anywhere except trusted ports.")]
+#|    out = []
+#|    for ver, why in picks:
+#|        spec = lib[ver]
+#|        rule = {"commands": spec["cmds"] or list(dict.fromkeys(c["command"] for c in spec["conds"] + spec["na"])),
+#|                "pass_logic": {"mode": spec["mode"], "conditions": spec["conds"]},
+#|                "na_enabled": bool(spec["na"]), "na_logic": {"mode": "ALL", "conditions": spec["na"]}}
+#|        out.append(f"Example - {why}\n```json\n{json.dumps(answer_for_rule(rule, why), indent=1)}\n```")
+#|    return "\n\n".join(out)
+#|
+#|
+#|def build_prompt(control, rule, platform, goal="", good="", bad="", samples=None, mask=True):
+#|    """The whole prompt as text. samples: {command: output} to include (masked when mask is True)."""
+#|    clean = redact if mask else (lambda t: t)
+#|    parts = [
+#|        "You are helping write a compliance-check rule for a STIG assessment tool. The tool runs show commands on "
+#|        "Cisco network devices and decides Not a Finding / Open / Not Applicable from the text output using ONLY "
+#|        "the conditions described below. Your job: write the conditions for the requirement below.",
+#|        "Answer with ONE JSON object in a ```json code block and nothing else outside it, in exactly the "
+#|        "format at the end. Use only the fields and values listed. Prefer simple checks (has / lacks with "
+#|        "\"starts with\" or \"whole line\") over regexes; use a regex only when it is really needed. Do not "
+#|        "invent commands the device does not have.",
+#|        reference(),
+#|        "WORKED EXAMPLES (real rules from this tool, in the answer format)\n\n" + _examples(),
+#|        f"THE REQUIREMENT\nPlatform: {platform or 'Cisco'}\n{control.get('vuln_id', '')} {control.get('rule_ver', '')} "
+#|        f"(severity {control.get('severity', '')}): {control.get('title', '')}\n\nCHECK TEXT:\n"
+#|        f"{(control.get('check') or '').strip()}\n\nFIX TEXT:\n{(control.get('fix') or '').strip()}",
+#|    ]
+#|    if (rule.get("pass_logic") or {}).get("conditions"):
+#|        parts.append("THE RULE TODAY (improve it or replace it):\n```json\n"
+#|                     f"{json.dumps(answer_for_rule(rule), indent=1)}\n```")
+#|    elif rule.get("commands"):
+#|        parts.append("Commands the rule already collects: " + ", ".join(rule["commands"]))
+#|    if goal.strip():
+#|        parts.append(f"WHAT THE REVIEWER WANTS (this wins over everything else):\n{goal.strip()}")
+#|    if good.strip():
+#|        parts.append("An example that MUST give Not a Finding (pass):\n```\n" + clean(good.strip("\n")) + "\n```")
+#|    if bad.strip():
+#|        parts.append("An example that MUST give Open (fail):\n```\n" + clean(bad.strip("\n")) + "\n```")
+#|    for cmd, text in (samples or {}).items():
+#|        parts.append(f"Real output of '{cmd}' from a device (for the layout; it may pass or fail):\n```\n"
+#|                     f"{clean(text.strip(chr(10)))}\n```")
+#|    parts.append(
+#|        "ANSWER FORMAT - one JSON object:\n```json\n" + json.dumps({
+#|            "format": FORMAT,
+#|            "commands": ["show running-config"],
+#|            "pass_mode": "ALL",
+#|            "pass_conditions": [{"command": "show running-config", "scope": "every", "section": "interface",
+#|                                 "section_how": "starts with", "only": [], "exclude": ["role:uplink"],
+#|                                 "if_none": "pass", "check": "has", "text": "...", "how": "whole line"}],
+#|            "na_mode": "ALL",
+#|            "na_conditions": [],
+#|            "tests": [{"name": "short name", "expected": "not_a_finding",
+#|                       "outputs": {"show running-config": "...device output that should pass..."}},
+#|                      {"name": "short name", "expected": "open",
+#|                       "outputs": {"show running-config": "...device output that should fail..."}}],
+#|            "explanation": "One short paragraph: what each condition checks and anything the reviewer must "
+#|                           "confirm by hand."}, indent=1) + "\n```\n"
+#|        "- \"commands\": every show command the conditions use (exact text).\n"
+#|        "- \"na_conditions\": empty list unless the requirement can be Not Applicable (e.g. a feature not in use).\n"
+#|        "- \"tests\": at least one sample that should pass and one that should fail, as realistic device output. "
+#|        "expected is one of not_a_finding, open, not_applicable.")
+#|    return "\n\n".join(parts)
+#|
+#|
+#|# ---------------------------------------------------------------- reading the answer
+#|
+#|CONDITION_KEYS = set(engine.NEW_CONDITION)
+#|STATUSES = ("not_a_finding", "open", "not_applicable", "not_reviewed")
+#|
+#|
+#|def _json_text(text):
+#|    fence = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.S)
+#|    if fence:
+#|        return fence.group(1)
+#|    start, end = text.find("{"), text.rfind("}")
+#|    if start < 0 or end < start:
+#|        raise ValueError("No JSON object found in the answer.")
+#|    return text[start:end + 1]
+#|
+#|
+#|def _condition(raw, n, where, commands, problems):
+#|    if not isinstance(raw, dict):
+#|        problems.append(f"{where} {n}: not an object - left out.")
+#|        return None
+#|    unknown = sorted(set(raw) - CONDITION_KEYS)
+#|    if unknown:
+#|        problems.append(f"{where} {n}: ignored unknown field(s) {', '.join(unknown)}.")
+#|    c = {**engine.NEW_CONDITION, **{k: v for k, v in raw.items() if k in CONDITION_KEYS}}
+#|    for key in ("only", "exclude"):
+#|        if isinstance(c[key], list):
+#|            c[key] = "\n".join(str(f).strip() for f in c[key] if str(f).strip())
+#|        c[key] = str(c[key] or "")
+#|    for key in ("command", "section", "section_how", "if_none", "check", "text", "how", "op"):
+#|        c[key] = str(c[key] if c[key] is not None else "")
+#|    c["value"] = "" if c["value"] in (None, "") else str(c["value"])
+#|    c["ignore_case"] = bool(c["ignore_case"]) and str(c["ignore_case"]).lower() != "false"
+#|    if c["scope"] not in engine.SCOPES:
+#|        problems.append(f"{where} {n}: unknown scope {c['scope']!r}.")
+#|    if c["if_none"] not in ("pass", "fail"):
+#|        problems.append(f"{where} {n}: if_none must be pass or fail.")
+#|    if c["how"] not in engine.HOWS or c["section_how"] not in engine.HOWS:
+#|        problems.append(f"{where} {n}: how / section_how must be one of {', '.join(engine.HOWS)}.")
+#|    if c["scope"] in engine.SCOPES and c["how"] in engine.HOWS and c["section_how"] in engine.HOWS:
+#|        problems += [f"{where} {n}: {e}." for e in engine.condition_problems(c, commands)]
+#|    return c
+#|
+#|
+#|def parse_answer(text):
+#|    """Read an AI answer. Returns (answer, problems): answer has commands, pass_mode, pass_conditions, na_mode,
+#|    na_conditions, tests and explanation in the tool's own format. Raises ValueError when it is not usable."""
+#|    try:
+#|        data = json.loads(_json_text(text))
+#|    except json.JSONDecodeError as e:
+#|        raise ValueError(f"The answer is not valid JSON: {e}") from e
+#|    if not isinstance(data, dict):
+#|        raise ValueError("The answer must be one JSON object.")
+#|    problems = []
+#|    commands = [str(c).strip() for c in data.get("commands") or [] if str(c).strip()]
+#|    conds = {}
+#|    for key, label in (("pass_conditions", "Not a Finding condition"), ("na_conditions", "Not Applicable condition")):
+#|        raw = data.get(key) or []
+#|        if not isinstance(raw, list):
+#|            raise ValueError(f"'{key}' must be a list.")
+#|        conds[key] = [c for c in (_condition(r, n, label, commands, problems) for n, r in enumerate(raw, 1)) if c]
+#|    for c in conds["pass_conditions"] + conds["na_conditions"]:  # a used command left out of the list: add it
+#|        if c["command"] and c["command"] not in commands:
+#|            commands.append(c["command"])
+#|            problems = [p for p in problems if f"command {c['command']!r} is not in" not in p]
+#|    if not conds["pass_conditions"]:
+#|        raise ValueError("The answer has no Not a Finding conditions.")
+#|    modes = {}
+#|    for key in ("pass_mode", "na_mode"):
+#|        modes[key] = str(data.get(key) or "ALL").upper()
+#|        if modes[key] not in ("ALL", "ANY"):
+#|            problems.append(f"{key} {modes[key]!r} is not ALL or ANY - using ALL.")
+#|            modes[key] = "ALL"
+#|    tests = []
+#|    for n, t in enumerate(data.get("tests") or [], 1):
+#|        outputs = (t or {}).get("outputs") if isinstance(t, dict) else None
+#|        if not isinstance(outputs, dict) or t.get("expected") not in STATUSES:
+#|            problems.append(f"AI test {n}: needs 'expected' ({', '.join(STATUSES)}) and 'outputs' - left out.")
+#|            continue
+#|        tests.append({"name": str(t.get("name") or f"test {n}"), "expected": t["expected"],
+#|                      "outputs": {str(k): str(v) for k, v in outputs.items()}})
+#|    return {"commands": commands, **modes, **conds, "tests": tests,
+#|            "explanation": str(data.get("explanation") or "")}, problems
 #@ END
 #@ FILE src/harden.py SHA 4355733216754660dbbdae4db8e3b9d89af6c6f6294b7b5edb3b340db9615071 CHUNK 1 OF 1
 #|"""Hardening scripts: fix commands per rule, and the scripts generated from them.
@@ -10884,6 +11403,94 @@ main()
 #|        joined = rules.join_port_filters(split["mode"], split["roles"], split["skip_shut"], split["only"],
 #|                                         split["exclude"])
 #|        self.assertEqual(joined, (only, "role:uplink, trusted\n" + rules.SHUT_FILTER + "\nchannel-group"))
+#|
+#|
+#|if __name__ == "__main__":
+#|    unittest.main()
+#@ END
+#@ FILE tests/test_llm_handoff.py SHA 873b787c934ccd2896341788891772f5a2b8202730247cb1691a27d4083af27a CHUNK 1 OF 1
+#|"""The AI handoff: the prompt is complete and safe, and answers are read back strictly."""
+#|import json
+#|import re
+#|import sys
+#|import unittest
+#|from pathlib import Path
+#|
+#|HERE = Path(__file__).resolve().parent
+#|sys.path.insert(0, str(HERE.parent / "src"))
+#|sys.path.insert(0, str(HERE))
+#|
+#|import llm_handoff as h  # noqa: E402
+#|import platform_samples as ps  # noqa: E402
+#|import rules  # noqa: E402
+#|
+#|CONTROL = {"vuln_id": "V-1", "rule_ver": "CISC-L2-000020", "severity": "high", "title": "802.1x",
+#|           "check": "Verify 802.1x.", "fix": "Configure 802.1x."}
+#|
+#|
+#|class PromptTests(unittest.TestCase):
+#|    def test_secrets_are_masked_but_config_is_kept(self):
+#|        text = h.redact("enable secret 9 $9$abc\nusername a privilege 15 secret 9 $9$def\n"
+#|                        "tacacs-server host 10.1.1.1 key 7 \"xyz\"\nkey chain OSPF_KEY\n key 1\n  key-string 7 0822\n"
+#|                        "snmp-server community public RO\nno password strength-check\n"
+#|                        "snmp-server user U G v3 auth sha AUTHPW priv aes 256 PRIVPW\n")
+#|        for secret in ("$9$abc", "$9$def", "xyz", "0822", "public", "AUTHPW", "PRIVPW"):
+#|            self.assertNotIn(secret, text)
+#|        for kept in ("key chain OSPF_KEY", " key 1\n", "no password strength-check"):
+#|            self.assertIn(kept, text)
+#|
+#|    def test_prompt_has_reference_roles_examples_and_masked_sample(self):
+#|        p = h.build_prompt(CONTROL, {"commands": ["show running-config"]}, "Catalyst 9300", goal="dot1x or parked",
+#|                           samples={"show running-config": ps.CONFIGS["CAT9300_HARDENED"]})
+#|        for part in ("role:trusted", "dot1x or parked", '"no_pattern"', "<MASKED>", h.FORMAT):
+#|            self.assertIn(part, p)
+#|        self.assertNotIn("$9$", p)
+#|        # every worked example in the prompt reads back with no problems
+#|        for block in re.findall(r"```json\n(.*?)\n```", p, re.S)[:3]:
+#|            answer, problems = h.parse_answer(block)
+#|            self.assertEqual(problems, [])
+#|            self.assertTrue(answer["pass_conditions"])
+#|
+#|
+#|class AnswerTests(unittest.TestCase):
+#|    def test_answer_in_chatty_text_with_lists_and_numbers(self):
+#|        reply = "Here you go:\n```json\n" + json.dumps({
+#|            "commands": [], "pass_mode": "any",
+#|            "pass_conditions": [{"command": "show running-config", "scope": "every", "section": "line vty",
+#|                                 "exclude": ["transport input none", "re:^\s*shutdown"], "check": "number",
+#|                                 "text": "exec-timeout", "op": "<=", "value": 10, "colour": "red"}],
+#|            "tests": [{"name": "good", "expected": "not_a_finding", "outputs": {"show running-config": "x"}},
+#|                      {"name": "broken", "expected": "maybe"}]}) + "\n```\nThanks!"
+#|        answer, problems = h.parse_answer(reply)
+#|        c = answer["pass_conditions"][0]
+#|        self.assertEqual(answer["commands"], ["show running-config"])  # added from the condition
+#|        self.assertEqual(answer["pass_mode"], "ANY")
+#|        self.assertEqual(c["exclude"], "transport input none\nre:^\s*shutdown")
+#|        self.assertEqual(c["value"], "10")
+#|        self.assertEqual([t["name"] for t in answer["tests"]], ["good"])
+#|        self.assertTrue(any("colour" in p for p in problems))
+#|        self.assertTrue(any("AI test 2" in p for p in problems))
+#|        self.assertFalse(any("not in the rule's command list" in p for p in problems))
+#|
+#|    def test_bad_answers_are_refused_or_flagged(self):
+#|        with self.assertRaises(ValueError):
+#|            h.parse_answer("I cannot help with that.")
+#|        with self.assertRaises(ValueError):
+#|            h.parse_answer('{"pass_conditions": []}')
+#|        _, problems = h.parse_answer(json.dumps({"commands": ["show run"], "pass_conditions": [
+#|            {"command": "show run", "check": "has", "how": "regex", "text": "(unclosed"},
+#|            {"command": "show run", "scope": "every", "section": "interface", "exclude": ["role:nosuchrole"],
+#|             "check": "has", "text": "x"}]}))
+#|        self.assertTrue(any("pattern error" in p for p in problems))
+#|        self.assertTrue(any("unknown port role" in p for p in problems))
+#|
+#|    def test_rule_round_trip(self):
+#|        rule = {"commands": ["show running-config"], "pass_logic": {"mode": "ALL", "conditions": [
+#|            {**rules.NEW_CONDITION, "command": "show running-config", "scope": "every", "section": "interface",
+#|             "exclude": "role:uplink\nshutdown", "check": "has", "text": "x"}]}}
+#|        answer, problems = h.parse_answer(json.dumps(h.answer_for_rule(rule)))
+#|        self.assertEqual(problems, [])
+#|        self.assertEqual(answer["pass_conditions"], rule["pass_logic"]["conditions"])
 #|
 #|
 #|if __name__ == "__main__":

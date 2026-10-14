@@ -24,6 +24,7 @@ import checklist
 import collect
 import drafts
 import harden
+import llm_handoff
 import rules as engine
 import store
 from checklist import LABEL_TO_STATUS, STATUS_LABELS, STATUSES
@@ -2282,6 +2283,13 @@ class RuleEditor(tk.Toplevel):
         self.cmd_text = config_wrap(tk.Text(f, height=3, width=50, font=MONO))
         self.cmd_text.pack(fill="x")
         self.cmd_text.bind("<KeyRelease>", lambda e: self.commands_changed())
+        ai = ttk.Frame(f)
+        ai.pack(fill="x", pady=(4, 0))
+        ttk.Button(ai, text="Ask an AI to write the conditions...", command=lambda: AiHandoffDialog(self)).pack(
+            side="left")
+        fit_text(ttk.Label(ai, foreground="#555", text="Copies a prompt for an approved AI; paste its answer back "
+                                                       "and it is checked before it is used.")).pack(
+            side="left", fill="x", expand=True, padx=6)
 
         self.compact_var = tk.BooleanVar(value=store.load_my_view().get("compact_conditions", False))
         self.pass_box, self.pass_mode = self._condition_block(
@@ -2877,6 +2885,200 @@ class RuleEditor(tk.Toplevel):
 # ---------------------------------------------------------------- share a rule with other controls
 
 SIMILAR_CHECK = 80  # % of check-text words in common that makes a control a likely match
+
+
+class AiHandoffDialog(tk.Toplevel):
+    """Rule editor: copy a prompt for another AI to write the conditions, then read its answer back in.
+
+    Nothing is sent from the tool. The person pastes the prompt into whichever AI their organisation allows,
+    and the answer is checked (every condition must be one the engine can run) before it touches the rule."""
+
+    def __init__(self, editor):
+        super().__init__(editor)
+        self.editor, self.answer = editor, None
+        self.title(f"Ask an AI - {editor.control['vuln_id']} {editor.control['rule_ver']}")
+        self.transient(editor)
+        maximize(self, "1100x860")
+        tk.Label(self, bg="#fff4ce", fg="#5c4300", anchor="w", justify="left", padx=8, pady=4, wraplength=1050,
+                 text="Nothing is sent from this tool: it copies a prompt, you paste it into an AI your "
+                      "organisation approves. Passwords, keys and SNMP communities are masked, but hostnames, "
+                      "IP addresses and descriptions are not - check the prompt (Preview) before sending it, and "
+                      "use made-up examples if the output is sensitive.").pack(fill="x", padx=8, pady=(8, 0))
+
+        one = ttk.LabelFrame(self, text=" 1. Describe what you want and copy the prompt ", padding=6)
+        one.pack(fill="both", expand=True, padx=8, pady=6)
+        ttk.Label(one, text="What should the rule check? Plain words, e.g. 'every port that is not an uplink, "
+                            "downlink or trusted port must have dot1x, or be shut down in vlan 2':").pack(anchor="w")
+        self.goal = tk.Text(one, height=3, wrap="word", font=("Segoe UI", 10))
+        self.goal.pack(fill="x", pady=(2, 6))
+        ex = ttk.Frame(one)
+        ex.pack(fill="both", expand=True)
+        ex.columnconfigure(0, weight=1)
+        ex.columnconfigure(1, weight=1)
+        ex.rowconfigure(1, weight=1)
+        ttk.Label(ex, text="Example that should PASS (e.g. a good interface):").grid(row=0, column=0, sticky="w")
+        ttk.Label(ex, text="Example that should FAIL (e.g. a bad interface):").grid(row=0, column=1, sticky="w",
+                                                                                    padx=(8, 0))
+        self.good = tk.Text(ex, height=7, wrap="none", font=MONO)
+        self.good.grid(row=1, column=0, sticky="nsew")
+        self.bad = tk.Text(ex, height=7, wrap="none", font=MONO)
+        self.bad.grid(row=1, column=1, sticky="nsew", padx=(8, 0))
+        opts = ttk.Frame(one)
+        opts.pack(fill="x", pady=(6, 0))
+        editor.store_sample()
+        self.samples = {c: t for c, t in editor.sample.items() if c in editor.commands() and t.strip()}
+        lines = sum(len(engine.split_lines(t)) for t in self.samples.values())
+        self.with_sample = tk.BooleanVar(value=bool(self.samples))
+        cb = ttk.Checkbutton(opts, variable=self.with_sample,
+                             text=f"Include the sample output from the test box ({lines} lines)" if self.samples
+                             else "Include sample output (none in the test box yet)")
+        cb.pack(side="left")
+        if not self.samples:
+            cb.state(["disabled"])
+        self.mask = tk.BooleanVar(value=True)
+        ttk.Checkbutton(opts, text="Mask passwords / keys / communities", variable=self.mask).pack(side="left",
+                                                                                                padx=12)
+        ttk.Button(opts, text="Preview prompt...", command=self.preview).pack(side="right")
+        ttk.Button(opts, text="Copy prompt", style="Accent.TButton", command=self.copy).pack(side="right", padx=6)
+
+        two = ttk.LabelFrame(self, text=" 2. Paste the AI's answer and check it ", padding=6)
+        two.pack(fill="both", expand=True, padx=8, pady=(0, 6))
+        self.reply = tk.Text(two, height=7, wrap="none", font=MONO)
+        self.reply.pack(fill="both", expand=True)
+        row = ttk.Frame(two)
+        row.pack(fill="x", pady=4)
+        ttk.Button(row, text="Check answer", command=self.check).pack(side="left")
+        self.add_mine = tk.BooleanVar(value=True)
+        self.add_ai_tests = tk.BooleanVar(value=True)
+        self.w_mine = ttk.Checkbutton(row, text="Save my pass / fail examples as tests", variable=self.add_mine)
+        self.w_mine.pack(side="left", padx=(12, 0))
+        ttk.Checkbutton(row, text="Add the AI's test samples (named 'AI: ...')",
+                        variable=self.add_ai_tests).pack(side="left", padx=(12, 0))
+        self.result = ScrolledText(two, height=9, wrap="word", font=("Segoe UI", 10))
+        self.result.pack(fill="both", expand=True)
+        self.result.tag_configure("bad", foreground="#b00020")
+        self.result.tag_configure("head", font=("Segoe UI", 10, "bold"))
+        text_set(self.result, "The checked answer appears here: each condition in plain words, and anything "
+                              "that is wrong with it.", readonly=True)
+
+        b = ttk.Frame(self)
+        b.pack(fill="x", padx=8, pady=(0, 8))
+        self.replace_btn = ttk.Button(b, text="Replace the rule's conditions", style="Accent.TButton",
+                                      command=lambda: self.apply(replace=True))
+        self.add_btn = ttk.Button(b, text="Add to the rule's conditions", command=lambda: self.apply(replace=False))
+        for w in (self.replace_btn, self.add_btn):
+            w.pack(side="left", padx=(0, 6))
+            w.state(["disabled"])
+        ttk.Button(b, text="Close", command=self.destroy).pack(side="right")
+        self.bind("<Escape>", lambda e: self.destroy())
+
+    def prompt(self):
+        ed = self.editor
+        platform = drafts.PLATFORM_LABEL.get(drafts.platform_of(ed.stig_id) or "", "")
+        return llm_handoff.build_prompt(ed.control, ed.collect(), platform, text_get(self.goal),
+                                        text_get(self.good), text_get(self.bad),
+                                        self.samples if self.with_sample.get() else None, mask=self.mask.get())
+
+    def copy(self):
+        text = self.prompt()
+        self.clipboard_clear()
+        self.clipboard_append(text)
+        messagebox.showinfo("Prompt copied", f"Copied {len(text):,} characters. Paste it into the AI, then paste "
+                                             "its whole answer into box 2 and click 'Check answer'.", parent=self)
+
+    def preview(self):
+        win = tk.Toplevel(self)
+        win.title("Prompt preview")
+        win.geometry("1000x760")
+        t = ScrolledText(win, wrap="word", font=MONO)
+        t.pack(fill="both", expand=True)
+        text_set(t, self.prompt(), readonly=True)
+
+    def examples_as_tests(self, commands):
+        """My pass / fail examples, as tests of the rule's only command (several commands: cannot tell which)."""
+        if len(commands) != 1:
+            return []
+        return [{"name": name, "expected": expected, "outputs": {commands[0]: text}}
+                for name, expected, text in (("My example (should pass)", "not_a_finding", text_get(self.good)),
+                                             ("My example (should fail)", "open", text_get(self.bad)))
+                if text.strip()]
+
+    def check(self):
+        self.answer = None
+        for w in (self.replace_btn, self.add_btn):
+            w.state(["disabled"])
+        t = self.result
+        t.configure(state="normal")
+        t.delete("1.0", "end")
+        try:
+            answer, problems = llm_handoff.parse_answer(text_get(self.reply))
+        except ValueError as e:
+            t.insert("end", f"Cannot use this answer: {e}\n", "bad")
+            t.configure(state="disabled")
+            return
+        t.insert("end", "Commands: " + ", ".join(answer["commands"]) + "\n", "head")
+        for key, mode, label in (("pass_conditions", "pass_mode", "NOT A FINDING when"),
+                                 ("na_conditions", "na_mode", "NOT APPLICABLE when")):
+            if answer[key]:
+                t.insert("end", f"\n{label} {answer[mode]} of:\n", "head")
+                for n, c in enumerate(answer[key], 1):
+                    t.insert("end", f"  {n}. {engine.describe(c)}\n")
+        if answer["explanation"]:
+            t.insert("end", "\nThe AI says: ", "head")
+            t.insert("end", answer["explanation"] + "\n")
+        trial = {"commands": answer["commands"], "pass_logic": {"mode": answer["pass_mode"],
+                                                                "conditions": answer["pass_conditions"]},
+                 "na_enabled": bool(answer["na_conditions"]),
+                 "na_logic": {"mode": answer["na_mode"], "conditions": answer["na_conditions"]},
+                 "tests": self.examples_as_tests(answer["commands"]) + answer["tests"]}
+        if trial["tests"]:
+            t.insert("end", "\nTried against the examples and the AI's samples:\n", "head")
+            for test, actual, ok in engine.run_tests(trial):
+                t.insert("end", f"  {'PASS' if ok else 'FAIL'}  {test['name']}: expected "
+                                f"{STATUS_LABELS[test['expected']]}, the rule gives {STATUS_LABELS[actual]}\n",
+                         () if ok else ("bad",))
+        if problems:
+            t.insert("end", "\nProblems (fix them in the AI or in the editor after using it):\n", "head")
+            for p in problems:
+                t.insert("end", f"  - {p}\n", "bad")
+        t.configure(state="disabled")
+        self.answer = answer
+        self.w_mine.state(["!disabled"] if len(answer["commands"]) == 1 else ["disabled"])
+        if not self.editor.readonly:
+            for w in (self.replace_btn, self.add_btn):
+                w.state(["!disabled"])
+
+    def apply(self, replace):
+        ed, a = self.editor, self.answer
+        if not a:
+            return
+        r = ed.r
+        commands = ed.commands() + [c for c in a["commands"] if c not in ed.commands()]
+        if replace:
+            r["pass_logic"] = {"mode": a["pass_mode"], "conditions": a["pass_conditions"]}
+            r["na_logic"] = {"mode": a["na_mode"], "conditions": a["na_conditions"]}
+            ed.pass_mode.set(a["pass_mode"])
+            ed.na_mode.set(a["na_mode"])
+            ed.na_var.set(bool(a["na_conditions"]))
+        else:
+            r["pass_logic"]["conditions"] += a["pass_conditions"]
+            r["na_logic"]["conditions"] += a["na_conditions"]
+            if a["na_conditions"]:
+                ed.na_var.set(True)
+        tests = self.examples_as_tests(a["commands"]) if self.add_mine.get() else []
+        tests += [{**t, "name": f"AI: {t['name']}"} for t in a["tests"]] if self.add_ai_tests.get() else []
+        for t in tests:
+            r["tests"].append({**t, "saved_at": store.now(), "saved_by": store.current_user()})
+        if a["explanation"]:
+            notes = text_get(ed.notes_text).strip()
+            text_set(ed.notes_text, (notes + "\n\n" if notes else "") + "AI notes: " + a["explanation"])
+        text_set(ed.cmd_text, "\n".join(commands))
+        ed.commands_changed()
+        ed.run_all_tests()
+        self.destroy()
+        messagebox.showinfo("Conditions added", "The AI's conditions are in the editor (not saved yet). Check "
+                                                "each one against the STIG text and the tests, then Save.",
+                            parent=ed)
 
 
 class ShareDialog(tk.Toplevel):

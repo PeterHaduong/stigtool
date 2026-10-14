@@ -278,6 +278,33 @@ In the stored rule, roles are written as `role:uplink, downlink, trusted` lines 
 - User-facing ports must be access ports.
 - Every live port must be labelled.
 
+## Asking an AI to write a rule's conditions
+
+In the rule editor, **Ask an AI to write the conditions...** builds a prompt you paste into an AI your
+organisation approves. Nothing is sent from the tool.
+
+1. Say in plain words what the rule should check. Optionally paste an example that should **pass** (e.g. a
+   good interface) and one that should **fail**. Paste enough config for the whole rule, including any global
+   lines it needs (e.g. `dot1x system-auth-control`).
+2. **Copy prompt.** It contains:
+   - every condition option, generated from the rule engine so it is always current
+   - your team's port roles
+   - three worked example rules
+   - the STIG check and fix text
+   - the rule as it is today
+   - your goal and examples
+   - the test-box sample output, if ticked
+   Passwords, secrets, keys and SNMP communities are masked. Hostnames, IP addresses and descriptions are
+   **not**, so use **Preview prompt** before sending it anywhere.
+3. Paste the AI's whole answer into box 2 and click **Check answer**. The answer is JSON; extra chat around it
+   is ignored. The tool then:
+   - lists each condition in plain words
+   - flags anything the engine cannot run (bad regex, unknown role, unknown field)
+   - runs your pass / fail examples and the AI's own samples as tests
+4. **Replace** or **Add to** the rule's conditions. Your examples become tests, and so do the AI's samples
+   (named `AI: ...`). The AI's explanation goes into Reviewer guidance. Nothing is saved until you click Save.
+   The rule is still a draft and still needs passing tests to be activated.
+
 ## Starter drafts (a head start on the rules)
 
 *Rules > Create starter drafts* writes a DRAFT rule for every control that has no rule yet, for the Cisco
