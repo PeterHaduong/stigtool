@@ -195,7 +195,7 @@ def sha256_file(path):
 DEFAULT_PLACEMENT = {"not_a_finding": "comments", "not_applicable": "comments", "open": "finding_details",
                      "not_reviewed": "comments"}
 # Interface-description keywords that mark port roles (comma-separated alternatives).
-DEFAULT_PORT_ROLES = {"uplink": "UPLINK", "downlink": "DOWNLINK", "access": "ACCESS, UNTRUSTED"}
+DEFAULT_PORT_ROLES = {"uplink": "UPLINK", "downlink": "DOWNLINK", "access": "ACCESS, UNTRUSTED", "trusted": "TRUSTED"}
 DEFAULT_SETTINGS = {"output_format": "ckl", "manual_controls": [], "device_overrides": {}, "known_devices": {},
                     "text_placement": DEFAULT_PLACEMENT, "port_roles": DEFAULT_PORT_ROLES, "site_values": {}}
 

@@ -111,7 +111,14 @@ ROLE_DOWNLINK = dict(only="role:downlink", exclude="re:^\\s*shutdown\\s*$", if_n
 NOT_UPLINK = dict(exclude="role:uplink", if_none="pass")
 ROLE_NOTE = ("Uses PORT ROLES from interface descriptions (keywords are a team setting: Team settings > Port roles): uplinks "
              "'description UPLINK - ...', downlinks 'description DOWNLINK - ...', client ports "
-             "'description ACCESS - ...' or 'UNTRUSTED - ...'. ")
+             "'description ACCESS - ...' or 'UNTRUSTED - ...', trusted ports 'description TRUSTED - ...'. ")
+# Ports that must authenticate: every front-panel host port that is not an uplink, downlink or trusted port
+# (labelled ACCESS or not labelled at all). Trunks, routed ports and port-channel members are not host ports.
+NOT_INFRA = "role:uplink, downlink, trusted"
+IOS_NOT_HOST = "re:^\\s*(switchport mode trunk|no switchport|vrf forwarding|channel-group)\\b"
+DOT1X_LIVE = dict(section_how="regex", exclude="\n".join([NOT_INFRA, IOS_NOT_HOST, "re:^\\s*shutdown\\s*$"]))
+DOT1X_PARKED = dict(section_how="regex", only="re:^\\s*shutdown\\s*$",
+                    exclude="\n".join([NOT_INFRA, IOS_NOT_HOST, "dot1x pae authenticator"]))
 LIVE_IOS_PORT = "re:^\\s*(shutdown|no switchport|vrf forwarding|channel-group)\\b"
 
 # Not-applicable shortcuts (the feature is not configured on the device)
@@ -337,12 +344,21 @@ IOSXE = {
         "240", "250", "260", "270", "280", "290", "300", "310", "320", "330", "340", "350", "390", "391", "392",
         "393", "394", "395", "396", "397", "398", "400", "410", "420", "430", "440", "450", "460")},
     # ---- L2S (Catalyst 9300)
-    "CISC-L2-000020": R(every("interface", rx_has(r"^\s*(authentication port-control auto|access-session port-control "
-                                                    r"auto|dot1x pae authenticator|mab)\b"), **ROLE_ACCESS),
+    "CISC-L2-000020": R(every(IOS_PORT, has("dot1x pae authenticator", how="whole line"), **DOT1X_LIVE),
+                        every(IOS_PORT, rx_has(r"^\s*(authentication|access-session) port-control auto\s*$"),
+                              **DOT1X_LIVE),
+                        every(IOS_PORT, has("switchport access vlan 2", how="whole line"), **DOT1X_PARKED),
+                        every(IOS_PORT, rx_lacks(r"^\s*(authentication open|(authentication|access-session) "
+                                                 r"port-control force-authorized)\b"),
+                              section_how="regex", exclude="role:trusted"),
                         has("dot1x system-auth-control", how="whole line"),
-                        note=ROLE_NOTE + "Every access port needs 802.1x / MAB (legacy 'authentication port-control' "
-                             "or IBNS 2.0 'access-session'). Ports in telecom rooms / wiring closets are exempt - "
-                             "label them differently."),
+                        note=ROLE_NOTE + "Every host port that is not an UPLINK, DOWNLINK or TRUSTED port - labelled "
+                             "ACCESS or not labelled at all - must either run 802.1x (conditions 1-2: 'dot1x pae "
+                             "authenticator' and port-control auto, legacy 'authentication' or IBNS 2.0 "
+                             "'access-session') or be shut down in the parking VLAN (condition 3 - EDIT 'vlan 2' to "
+                             "your parking VLAN). Shut ports with 802.1x pass either way. Condition 4: no "
+                             "non-trusted port may use open authentication or force-authorized. Ports in secure "
+                             "rooms (e.g. analog gateways) are exempt: label them 'description TRUSTED - ...'."),
     "CISC-L2-000030": R(rx_has(r"VTP Operating Mode\s*:\s*Off", cmd="show vtp status"),
                         rx_has(r"VTP Password:\s*\S+", cmd="show vtp password"), mode="ANY",
                         cmds=["show vtp status", "show vtp password"],

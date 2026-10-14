@@ -590,7 +590,7 @@ class App(tk.Tk):
             team.add_radiobutton(label=f"    {label}", value=fmt, variable=self.fmt_var, command=self.set_format)
         team.add_separator()
         team.add_command(label="Where reasons go in the checklist...", command=lambda: PlacementDialog(self))
-        team.add_command(label="Port roles (uplink / downlink / access keywords)...",
+        team.add_command(label="Port roles (uplink / downlink / access / trusted / your own)...",
                          command=lambda: PortRolesDialog(self))
         team.add_command(label="Site values (DoD banner, NTP / AAA / syslog servers...)...",
                          command=lambda: SiteValuesDialog(self))
@@ -3112,11 +3112,21 @@ CHECK_HELP = {
     "pattern": "Advanced: a regular expression searched across the whole text. Use \\n to span lines.",
     "no_pattern": "Advanced: passes when the regular expression is NOT found anywhere.",
 }
-SCOPE_HELP = ("A section is a line plus the indented lines under it, e.g. 'line vty 0 4' and its settings, "
-              "or 'interface GigabitEthernet1/0/1' and its settings. 'Only' / 'skip' look for a line STARTING "
-              "with the text, so skip 'shutdown' does not skip 'no shutdown'. Start with re: for a regex. "
-              "Port roles: type role:uplink, role:downlink, role:access or role:any to pick interfaces by their "
-              "description keyword (set on the Device Groups tab).")
+SCOPE_HELP = ("A section is a line plus the indented lines under it, e.g. 'interface GigabitEthernet1/0/1' and "
+              "its settings. Port roles come from the interface description (Team settings > Port roles); a port "
+              "with no role label is not in any role, so 'every port EXCEPT uplink, trusted' still checks "
+              "unlabelled ports. The 'also' boxes take one filter per line, matched at the START of a line (so "
+              "'shutdown' is not 'no shutdown'); start a line with re: for a regex.")
+PORT_MODES = {"all": "Any port (no role filter)", "only": "Only ports with these roles:",
+              "except": "Every port EXCEPT these roles:"}
+SECTION_PRESETS = [
+    ("Every interface", "interface", "starts with"),
+    ("Front-panel switch ports, IOS-XE (no Vlan / Loopback / Port-channel / AppGig)",
+     r"^interface (?!AppGig)\S*(Ethernet|GigE)\d", "regex"),
+    ("Ethernet ports, NX-OS", r"^interface Ethernet\d", "regex"),
+    ("vty lines", "line vty", "starts with"),
+    ("Console line", "line con", "starts with"),
+]
 
 
 # Worked examples for the condition dialog: (menu text, condition fields)
@@ -3132,6 +3142,20 @@ CONDITION_EXAMPLES = [
      {"scope": "every", "section": "interface", "section_how": "starts with", "only": "role:access",
       "exclude": "shutdown", "if_none": "pass", "check": "has", "how": "starts with",
       "text": "spanning-tree bpduguard enable"}),
+    ("Every live port that is not an uplink / downlink / trusted must have 802.1x",
+     {"scope": "every", "section": "interface", "section_how": "starts with", "only": "",
+      "exclude": "role:uplink, downlink, trusted\n"
+                 "re:^\\s*(shutdown|switchport mode trunk|no switchport|channel-group)\\b",
+      "if_none": "pass", "check": "has", "how": "whole line", "text": "dot1x pae authenticator"}),
+    ("Shut ports without 802.1x must be parked in a VLAN - e.g. vlan 2",
+     {"scope": "every", "section": "interface", "section_how": "starts with", "only": "shutdown",
+      "exclude": "role:uplink, downlink, trusted\ndot1x pae authenticator\n"
+                 "re:^\\s*(switchport mode trunk|no switchport|channel-group)\\b",
+      "if_none": "pass", "check": "has", "how": "whole line", "text": "switchport access vlan 2"}),
+    ("No port (except trusted ones) may have open authentication",
+     {"scope": "every", "section": "interface", "section_how": "starts with", "exclude": "role:trusted",
+      "if_none": "pass", "check": "lacks", "how": "regex",
+      "text": "^\\s*(authentication open|(authentication|access-session) port-control force-authorized)\\b"}),
     ("A number must be at most / at least N - e.g. vty exec-timeout at most 10",
      {"scope": "every", "section": "line vty", "section_how": "starts with", "if_none": "fail", "check": "number",
       "how": "starts with", "text": "exec-timeout", "op": "<=", "value": "10"}),
@@ -3151,7 +3175,7 @@ class ConditionDialog(tk.Toplevel):
         if not c["command"]:
             c["command"] = default_cmd if default_cmd in commands else commands[0]
         self.v = {k: tk.StringVar(value=str(c[k])) for k in
-                  ("command", "section", "section_how", "only", "exclude", "text", "how", "op", "value")}
+                  ("command", "section", "section_how", "text", "how", "op", "value")}
         self.scope_labels = {v: k for k, v in engine.SCOPES.items()}
         self.check_labels = {v: k for k, v in engine.CHECKS.items()}
         self.v["scope"] = tk.StringVar(value=engine.SCOPES[c["scope"]])
@@ -3185,11 +3209,36 @@ class ConditionDialog(tk.Toplevel):
         self.w_section_how = ttk.Combobox(sec, textvariable=self.v["section_how"], values=engine.HOWS,
                                           state="readonly", width=11)
         self.w_section_how.pack(side="left")
-        self.w_section = ttk.Entry(sec, textvariable=self.v["section"], width=46)
+        self.w_section = ttk.Entry(sec, textvariable=self.v["section"], width=36)
         self.w_section.pack(side="left", padx=4)
+        self.w_section_pick = more_button(sec, [(label, lambda s=s, h=h: (self.v["section"].set(s),
+                                                                          self.v["section_how"].set(h)))
+                                                for label, s, h in SECTION_PRESETS], "Pick")
+        self.w_section_pick.pack(side="left")
         row("   ...section first line:", sec)
-        self.w_only = row("   ...only sections with a line starting:", ttk.Entry(f, textvariable=self.v["only"]))
-        self.w_exclude = row("   ...skip sections with a line starting:", ttk.Entry(f, textvariable=self.v["exclude"]))
+
+        # Port roles and shut ports as plain choices; they are stored as role: / shutdown filter lines
+        split = engine.split_port_filters(c.get("only"), c["exclude"])
+        self.port_mode = tk.StringVar(value=PORT_MODES[split["mode"]])
+        self.role_vars = {name: tk.BooleanVar(value=name in split["roles"]) for name in engine.PORT_ROLES}
+        for name in split["roles"]:  # a role the rule uses that is no longer a team role: keep it visible
+            self.role_vars.setdefault(name, tk.BooleanVar(value=True))
+        self.skip_shut = tk.BooleanVar(value=split["skip_shut"])
+        ports = ttk.Frame(f)
+        self.w_port_mode = ttk.Combobox(ports, textvariable=self.port_mode, values=list(PORT_MODES.values()),
+                                        state="readonly", width=30)
+        self.w_port_mode.pack(side="left")
+        self.w_roles = []
+        for name, var in self.role_vars.items():
+            cb = ttk.Checkbutton(ports, text=name, variable=var)
+            cb.pack(side="left", padx=(6, 0))
+            self.w_roles.append(cb)
+        row("   ...which ports (by role):", ports)
+        self.w_skip_shut = row("", ttk.Checkbutton(f, text="Skip shut-down ports / sections ('shutdown', not "
+                                                           "'no shutdown')", variable=self.skip_shut))
+        # Anything else: one filter per line
+        self.w_only = row("   ...also only sections with a line starting:", self.filter_box(f, split["only"]))
+        self.w_exclude = row("   ...also skip sections with a line starting:", self.filter_box(f, split["exclude"]))
         self.w_if_none = row("   ...if no sections found:",
                              ttk.Combobox(f, textvariable=self.v["if_none"], state="readonly",
                                           values=["counts as FAIL", "counts as PASS"]))
@@ -3229,7 +3278,7 @@ class ConditionDialog(tk.Toplevel):
         ttk.Button(b, text="OK", command=self.ok).pack(side="left", padx=4)
         ttk.Button(b, text="Cancel", command=self.destroy).pack(side="left", padx=4)
 
-        for var in list(self.v.values()) + [self.ignore]:
+        for var in list(self.v.values()) + [self.ignore, self.port_mode, self.skip_shut] + list(self.role_vars.values()):
             var.trace_add("write", lambda *a: self.update_view())
         self.commands = commands
         self.update_view()
@@ -3237,45 +3286,79 @@ class ConditionDialog(tk.Toplevel):
         self.grab_set()
         parent.wait_window(self)
 
+    def filter_box(self, parent, value):
+        box = tk.Text(parent, height=2, width=60, wrap="none", font=("Segoe UI", 10), undo=True)
+        box.insert("1.0", value or "")
+        box.bind("<KeyRelease>", lambda e: self.update_view(), add="+")
+        box.bind("<<Paste>>", lambda e: self.after_idle(self.update_view), add="+")
+        return box
+
     def use_example(self, example):
         c = {**engine.NEW_CONDITION, "command": self.v["command"].get(), **example}
-        for k in ("section", "section_how", "only", "exclude", "text", "how", "op", "value"):
+        split = engine.split_port_filters(c["only"], c["exclude"])
+        for box, k in ((self.w_only, "only"), (self.w_exclude, "exclude")):
+            text_set(box, split[k])
+        self.port_mode.set(PORT_MODES[split["mode"]])
+        for name, var in self.role_vars.items():
+            var.set(name in split["roles"])
+        self.skip_shut.set(split["skip_shut"])
+        for k in ("section", "section_how", "text", "how", "op", "value"):
             self.v[k].set(str(c[k]))
         self.v["scope"].set(engine.SCOPES[c["scope"]])
         self.v["check"].set(engine.CHECKS[c["check"]])
         self.v["if_none"].set("counts as FAIL" if c["if_none"] == "fail" else "counts as PASS")
         self.ignore.set(bool(c["ignore_case"]))
+        self.update_view()
+
+    def port_choice(self):
+        mode = next(k for k, v in PORT_MODES.items() if v == self.port_mode.get())
+        return mode, [name for name, var in self.role_vars.items() if var.get()]
 
     def current(self):
+        mode, roles = self.port_choice()
+        only, exclude = engine.join_port_filters(mode, roles, self.skip_shut.get(), text_get(self.w_only),
+                                                 text_get(self.w_exclude))
         return {
             "command": self.v["command"].get(), "scope": self.scope_labels[self.v["scope"].get()],
             "section": self.v["section"].get(), "section_how": self.v["section_how"].get(),
-            "only": self.v["only"].get(), "exclude": self.v["exclude"].get(),
+            "only": only, "exclude": exclude,
             "if_none": "fail" if "FAIL" in self.v["if_none"].get() else "pass",
             "check": self.check_labels[self.v["check"].get()], "text": self.v["text"].get(),
             "how": self.v["how"].get(), "ignore_case": self.ignore.get(),
             "op": self.v["op"].get(), "value": self.v["value"].get().strip(),
         }
 
+    def problems(self, c):
+        errs = engine.condition_problems(c, self.commands)
+        mode, roles = self.port_choice()
+        if c["scope"] != "all" and mode != "all" and not roles:
+            errs.append("tick at least one port role (or choose 'Any port')")
+        return errs
+
     def update_view(self):
         c = self.current()
         sectioned = c["scope"] != "all"
-        for w in (self.w_section, self.w_only, self.w_exclude):
-            w.configure(state="normal" if sectioned else "disabled")
-        for w in (self.w_section_how, self.w_if_none):
+        self.w_section.configure(state="normal" if sectioned else "disabled")
+        for w in (self.w_only, self.w_exclude):
+            w.configure(state="normal" if sectioned else "disabled", background="white" if sectioned else "#f0f0f0")
+        for w in (self.w_section_how, self.w_if_none, self.w_port_mode):
             w.configure(state="readonly" if sectioned else "disabled")
+        mode, _ = self.port_choice()
+        for w in self.w_roles:
+            w.configure(state="normal" if sectioned and mode != "all" else "disabled")
+        for w in (self.w_skip_shut, self.w_section_pick):
+            w.configure(state="normal" if sectioned else "disabled")
         numeric = c["check"] in ("number", "count")
         self.w_op.configure(state="readonly" if numeric else "disabled")
         self.w_value.configure(state="normal" if numeric else "disabled")
         self.w_how.configure(state="disabled" if c["check"] in ("pattern", "no_pattern") else "readonly")
         self.help.configure(text=CHECK_HELP[c["check"]])
         self.preview.configure(text=engine.describe(c))
-        errs = engine.condition_problems(c, self.commands)
-        self.errors.configure(text="\n".join(f"- {e}" for e in errs))
+        self.errors.configure(text="\n".join(f"- {e}" for e in self.problems(c)))
 
     def ok(self):
         c = self.current()
-        errs = engine.condition_problems(c, self.commands)
+        errs = self.problems(c)
         if errs:
             return messagebox.showerror("Fix the condition", "\n".join(errs), parent=self)
         self.result = c
@@ -3863,7 +3946,13 @@ class SiteValuesDialog(tk.Toplevel):
 
 
 class PortRolesDialog(tk.Toplevel):
-    """Team setting: the interface-description keywords that mark uplink / downlink / access ports."""
+    """Team setting: the interface-description keywords that mark port roles. The built-in roles (used by the
+    starter rules) can be re-worded but not removed; the team can add its own."""
+
+    BUILT_IN = {"uplink": "Uplinks (toward distribution / core):",
+                "downlink": "Downlinks (toward access switches):",
+                "access": "Access / client ports (untrusted):",
+                "trusted": "Trusted ports (e.g. analog gateways in a secure room - no 802.1x):"}
 
     def __init__(self, app):
         super().__init__(app)
@@ -3873,35 +3962,93 @@ class PortRolesDialog(tk.Toplevel):
         self.resizable(False, False)
         f = ttk.Frame(self, padding=12)
         f.pack()
-        ttk.Label(f, justify="left", wraplength=620, text=(
-            "Rules find uplinks, downlinks and client ports by the START of the interface description, so the "
-            "port number does not matter. Label ports like 'description UPLINK - DIST-SW-01 Te2/0/14' or "
-            "'description ACCESS - Room 112 jack 4'. Separate several keywords with commas. Upper / lower case "
-            "does not matter. In a rule, use role:uplink, role:downlink, role:access or role:any.")).grid(
-            row=0, column=0, columnspan=2, sticky="w", pady=(0, 10))
+        ttk.Label(f, justify="left", wraplength=640, text=(
+            "Rules find ports by the START of the interface description, so the port number does not matter. "
+            "Label ports like 'description UPLINK - DIST-SW-01 Te2/0/14' or 'description TRUSTED - analog "
+            "gateway rm 112'. Separate several keywords with commas. Upper / lower case does not matter. In a "
+            "rule, use role:trusted, several roles at once (role:uplink, downlink, trusted) or role:any (any "
+            "labelled port).")).pack(anchor="w", pady=(0, 10))
+        self.rows_frame = ttk.Frame(f)
+        self.rows_frame.pack(fill="x")
         self.vars = {}
-        labels = {"uplink": "Uplinks (toward distribution / core):",
-                  "downlink": "Downlinks (toward access switches):",
-                  "access": "Access / client ports (untrusted):"}
-        for r, role in enumerate(("uplink", "downlink", "access"), 1):
-            ttk.Label(f, text=labels[role]).grid(row=r, column=0, sticky="w", pady=3)
-            var = tk.StringVar(value=app.settings["port_roles"][role])
-            ttk.Entry(f, textvariable=var, width=36).grid(row=r, column=1, sticky="w", padx=6)
-            self.vars[role] = var
+        saved = app.settings["port_roles"]
+        for role, label in self.BUILT_IN.items():
+            self.add_row(role, saved.get(role, ""), label)
+        for role, words in saved.items():
+            if role not in self.BUILT_IN:
+                self.add_row(role, words)
+        add = ttk.Frame(f)
+        add.pack(fill="x", pady=(10, 0))
+        ttk.Label(add, text="New role name:").pack(side="left")
+        self.new_name = tk.StringVar()
+        entry = ttk.Entry(add, textvariable=self.new_name, width=16)
+        entry.pack(side="left", padx=4)
+        entry.bind("<Return>", lambda e: self.add_role())
+        ttk.Button(add, text="Add role", command=self.add_role).pack(side="left")
+        ttk.Label(add, text="  lower case, e.g. camera or voice", foreground="#555").pack(side="left")
         b = ttk.Frame(f)
-        b.grid(row=5, column=0, columnspan=2, pady=(10, 0))
-        ttk.Button(b, text="Save", command=self.save).pack(side="left", padx=4)
+        b.pack(pady=(12, 0))
+        ttk.Button(b, text="Save", command=self.save, style="Accent.TButton").pack(side="left", padx=4)
         ttk.Button(b, text="Cancel", command=self.destroy).pack(side="left", padx=4)
         self.grab_set()
         app.wait_window(self)
+
+    def add_row(self, role, words, label=None):
+        row = ttk.Frame(self.rows_frame)
+        row.pack(fill="x", pady=2)
+        ttk.Label(row, text=label or f"role:{role}", width=58 if label else 20).pack(side="left")
+        if not label:
+            ttk.Label(row, text="(team role)", foreground="#555", width=36).pack(side="left")
+        var = tk.StringVar(value=words)
+        ttk.Entry(row, textvariable=var, width=30).pack(side="left", padx=6)
+        if not label:
+            ttk.Button(row, text="Remove", width=8,
+                       command=lambda: (row.destroy(), self.vars.pop(role, None))).pack(side="left")
+        self.vars[role] = var
+
+    def add_role(self):
+        name = self.new_name.get().strip().lower()
+        if not engine.ROLE_NAME_RE.match(name) or name == "any":
+            return messagebox.showerror("Port roles", "A role name is one lower-case word (letters, digits, - or _), "
+                                                      "starting with a letter, and not 'any'.", parent=self)
+        if name in self.vars:
+            return messagebox.showerror("Port roles", f"There is already a role called {name}.", parent=self)
+        self.add_row(name, name.upper())
+        self.new_name.set("")
 
     def save(self):
         roles = {k: ", ".join(w.strip() for w in v.get().split(",") if w.strip()) for k, v in self.vars.items()}
         if not all(roles.values()):
             return messagebox.showerror("Port roles", "Every role needs at least one keyword.", parent=self)
+        owners = {}
+        for role, words in roles.items():
+            for w in words.split(", "):
+                owners.setdefault(w.upper(), []).append(role)
+        clash = {w: r for w, r in owners.items() if len(r) > 1}
+        if clash:
+            return messagebox.showerror("Port roles", "A keyword can only mark one role:\n" + "\n".join(
+                f"{w}: {', '.join(r)}" for w, r in clash.items()), parent=self)
+        used = self.used_roles()
+        gone = sorted(r for r in used if r not in roles)
+        if gone and not messagebox.askokcancel(
+                "Port roles", f"Rules still use role(s) you removed: {', '.join(gone)}. Those conditions will show "
+                              "a problem (and give Not Reviewed) until they are changed. Save anyway?", parent=self):
+            return
         store.set_setting("port_roles", roles)
         self.app.reload()
         self.destroy()
+
+    def used_roles(self):
+        """Role names that saved rules refer to."""
+        found = set()
+        for rule in self.app.rules_db["rules"]:
+            for key in ("pass_logic", "na_logic"):
+                for cond in (rule.get(key) or {}).get("conditions", []):
+                    for text in engine.filter_lines(cond.get("only")) + engine.filter_lines(cond.get("exclude")) \
+                            + [cond.get("text", "")]:
+                        if engine.is_role(text):
+                            found |= {n.strip().lower() for n in text.strip()[5:].split(",") if n.strip()}
+        return found - {"any"}
 
 
 class RuleChoicesDialog(tk.Toplevel):

@@ -160,7 +160,7 @@ redundancy
  mode sso
 udld aggressive
 !
-vlan 999
+vlan 2
  name PARKING
 !
 class-map match-all VOICE
@@ -197,9 +197,15 @@ interface GigabitEthernet1/0/1
  service-policy output QOS_OUT
 !
 interface GigabitEthernet1/0/2
- switchport access vlan 999
+ switchport access vlan 2
  switchport mode access
  shutdown
+!
+interface GigabitEthernet1/0/3
+ description TRUSTED - ANALOG GATEWAY RM 112
+ switchport access vlan 30
+ switchport mode access
+ spanning-tree portfast
 !
 interface TenGigabitEthernet1/1/1
  description UPLINK - DIST-SW-01 Te2/0/14
@@ -560,7 +566,8 @@ SHOW = {
         "show vlan brief": "VLAN Name                             Status    Ports\n---- ---- ----\n"
                            "1    default                          active    \n"
                            "10   USERS                            active    Gi1/0/1\n"
-                           "999  PARKING                          active    Gi1/0/2",
+                           "2    PARKING                          active    Gi1/0/2\n"
+                           "30   ANALOG                           active    Gi1/0/3",
         "show version": "Cisco IOS XE Software, Version 17.09.04a\nCisco IOS Software [Cupertino], Catalyst L3 Switch",
         "show ip interface brief": "Interface              IP-Address      OK? Method Status                Protocol\n"
                                    "Vlan1                  unassigned      YES NVRAM  administratively down down    \n"

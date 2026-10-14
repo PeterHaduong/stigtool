@@ -194,7 +194,10 @@ FIX_IOSXE = {
     "CISC-RT-000950": F(high=["ip msdp peer <MSDP_PEER> connect-source Loopback0"]),
     # ---- L2S (Catalyst 9300)
     "CISC-L2-000020": F(high=["dot1x system-auth-control", "{each failing section of condition 1}",
-                              " authentication port-control auto", " dot1x pae authenticator", " mab"]),
+                              " dot1x pae authenticator", " mab", "{each failing section of condition 2}",
+                              " authentication port-control auto", "{each failing section of condition 4}",
+                              " no authentication open", " authentication port-control auto"],
+                        low=["{each failing section of condition 3}", " switchport access vlan <PARKING_VLAN>"]),
     "CISC-L2-000030": F(high=["vtp mode off"]),
     "CISC-L2-000040": F(high=["! build the QoS policy per the site QoS design, then on each port:",
                               "interface <INTERFACE>", " service-policy output <QOS_POLICY>"]),
@@ -225,7 +228,7 @@ FIX_IOSXE = {
     "CISC-L2-000250": F(high=["{each failing section of condition 1}", " switchport mode access",
                               " switchport nonegotiate"],
                         low=["{each failing section of condition 2}",
-                             " ! label this port: description UPLINK - ... / DOWNLINK - ... / ACCESS - ..."]),
+                             " ! label this port: description UPLINK - ... / DOWNLINK - ... / ACCESS - ... / TRUSTED - ..."]),
 }
 
 
@@ -385,7 +388,7 @@ FIX_NXOS = {
     "CISC-RT-000950": F(high=["ip msdp peer <MSDP_PEER> connect-source loopback0 remote-as <ASN>"]),
     "CISC-L2-000250": F(high=["{each failing section of condition 1}", "  switchport mode access"],
                         low=["{each failing section of condition 2}",
-                             "  ! label this port: description UPLINK - ... / DOWNLINK - ... / ACCESS - ..."]),
+                             "  ! label this port: description UPLINK - ... / DOWNLINK - ... / ACCESS - ... / TRUSTED - ..."]),
 }
 
 FIX_LIBRARY = {"IOSXE_SW": FIX_IOSXE, "IOSXE_RTR": FIX_IOSXE, "NXOS": FIX_NXOS}
@@ -399,9 +402,9 @@ def starter_fix(platform, rule_ver):
 
 def _header_for(cond):
     section = cond.get("section", "")
-    only = (cond.get("only") or "").strip().lower()
+    only = next((f.lower() for f in (cond.get("only") or "").split("\n") if f.strip().lower().startswith("role:")), "")
     if "interface" in section:
-        role = only[5:].strip().upper() if only.startswith("role:") else ""
+        role = "_".join(n.strip() for n in only.strip()[5:].split(",") if n.strip()).upper() if only else ""
         return f"interface <{role + '_' if role else ''}INTERFACE>"
     if cond.get("section_how") == "regex" or not section.strip():
         return "<SECTION>"

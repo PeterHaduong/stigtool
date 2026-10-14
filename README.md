@@ -209,7 +209,7 @@ couple of results by hand, and write the package; then open the checklists in ST
 the `.ckl` files into Vulnerator. Use documentation IP addresses (192.0.2.x) in made-up files. Vulnerator reads
 STIG Viewer 2.x `.ckl` files, not STIG Viewer 3 `.cklb`.
 
-## Port roles: rules for uplinks, downlinks and access ports
+## Port roles: rules for uplinks, downlinks, access and trusted ports
 
 Uplinks are not on the same port on every switch, so rules find ports by **what they are**, not by number. The
 interface description says what the port is:
@@ -221,24 +221,35 @@ interface GigabitEthernet1/0/24
  description DOWNLINK - ACC-SW-07 Te1/1/1        <- downlink toward an access switch
 interface GigabitEthernet1/0/5
  description ACCESS - Room 112 jack 4            <- client port (ACCESS or UNTRUSTED)
+interface GigabitEthernet1/0/6
+ description TRUSTED - analog gateway rm 112     <- trusted device in a secure room (no 802.1x)
 ```
 
 **Labelling rules:**
 - The keyword goes **first**. Anything after it is free text.
 - Upper / lower case does not matter.
 - The keywords are a team setting: *Team settings > Port roles* (defaults: `UPLINK`, `DOWNLINK`,
-  `ACCESS, UNTRUSTED`).
+  `ACCESS, UNTRUSTED`, `TRUSTED`).
+- **Add your own roles** there too (e.g. `camera` = `CAMERA, CCTV`). Built-in roles can be re-worded but not
+  removed, because the starter rules use them. Each keyword can mark only one role.
 - Changing a keyword there changes every rule that uses it.
+- A port with no label is in **no** role.
 
-**Using roles in a rule** (rule editor, Add condition):
+**Using roles in a rule** (rule editor, Add condition). Set *Look in* to EVERY section, click **Pick** next to
+the section box for "Every interface" or "Front-panel switch ports", then choose **Which ports (by role)**:
 
-| You want | Look in | Only / skip | It |
+| You want | Which ports | Skip shut-down ports | It |
 |---|---|---|---|
-| every uplink has DHCP-snooping trust | EVERY section that starts with `interface` | only: `role:uplink`; if none found: FAIL | has a line (whole line) `ip dhcp snooping trust` |
-| nothing else has trust | EVERY section that starts with `interface` | skip: `role:uplink` | has NO line (whole line) `ip dhcp snooping trust` |
-| every client port has 802.1x, BPDU Guard, storm control, a parking / user VLAN... | EVERY section that starts with `interface` | only: `role:access`; skip `shutdown` | has a line ... |
-| every downlink has Root Guard | EVERY section that starts with `interface` | only: `role:downlink` | has a line `spanning-tree guard root` |
-| every live port is labelled | EVERY section that starts with `interface` | skip `shutdown` | has a line `role:any` |
+| every uplink has DHCP-snooping trust | Only: uplink (if none found: FAIL) | yes | has a line (whole line) `ip dhcp snooping trust` |
+| nothing else has trust | Every port EXCEPT: uplink | no | has NO line (whole line) `ip dhcp snooping trust` |
+| every client port has BPDU Guard, storm control... | Only: access | yes | has a line ... |
+| every port that is not infrastructure or trusted has 802.1x (labelled ACCESS or not labelled) | Every port EXCEPT: uplink, downlink, trusted | yes | has a line (whole line) `dot1x pae authenticator` |
+| every downlink has Root Guard | Only: downlink | yes | has a line `spanning-tree guard root` |
+| every live port is labelled | Any port | yes | has a line `role:any` |
+
+The *also only / also skip* boxes take any other filters, **one per line**: a section must match every
+"only" line and is skipped if it matches any "skip" line (e.g. skip `dot1x pae authenticator` *and* trunks).
+In the stored rule, roles are written as `role:uplink, downlink, trusted` lines in those same filters.
 
 **Tips:**
 - **"If no sections found"** decides what happens on a switch with no port in that role.
@@ -246,6 +257,11 @@ interface GigabitEthernet1/0/5
     switch is flagged instead of quietly passing.
   - Use **PASS** when the role is optional (most access switches have no downlinks).
 - **Pair "must have" with "must not have"** for trust settings. Trust on a client port is the real danger.
+- **"Either / or" per port** (802.1x OR parked): split it into conditions that each skip the ports the other
+  covers. Live ports must have 802.1x (skip shut ports); shut ports must be in the parking VLAN (skip ports
+  that have 802.1x). The CISC-L2-000020 starter draft is built this way.
+- **Catch the obvious violations too:** every port EXCEPT trusted has NO `authentication open` /
+  `port-control force-authorized` line.
 - **Add a drift check:** every `role:uplink` port has `switchport mode trunk`. A mislabelled port then shows up.
 - **Groups without client ports** (core / distribution) still fail the access checks, which is the point for
   access switches. For those groups, choose a different rule version or mark the control N/A.
@@ -256,7 +272,9 @@ interface GigabitEthernet1/0/5
 **Starter drafts that use roles:**
 - DHCP snooping trust and DAI trust on uplinks only.
 - Root Guard on downlinks.
-- 802.1x, BPDU Guard, unknown-unicast blocking, IP Source Guard and storm control on access ports.
+- 802.1x (CISC-L2-000020): every front-panel host port that is not an uplink, downlink or trusted port runs
+  802.1x or is shut down in VLAN 2 (edit to your parking VLAN); no non-trusted port uses open authentication.
+- BPDU Guard, unknown-unicast blocking, IP Source Guard and storm control on access ports.
 - User-facing ports must be access ports.
 - Every live port must be labelled.
 

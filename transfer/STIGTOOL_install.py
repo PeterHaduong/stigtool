@@ -1,4 +1,4 @@
-"""STIGTOOL installer - part 1 of 1 (bundle f40d2b28).
+"""STIGTOOL installer - part 1 of 1 (bundle 008cdcca).
 
 HOW TO USE: save this text as a .py file and run it:   python <this file>
   - Run every part of the bundle (1 in total), in any order.
@@ -36,7 +36,7 @@ def main():
             current, buf = (f[2], f[4], int(f[6]), int(f[8])), []
         elif line.startswith("#@ END") and current:
             path, sha, i, n = current
-            (stash / f"f40d2b28_{path.replace('/', '__')}.{i}").write_text("\n".join(buf) + "\n", encoding="utf-8")
+            (stash / f"008cdcca_{path.replace('/', '__')}.{i}").write_text("\n".join(buf) + "\n", encoding="utf-8")
             files[path] = (sha, n)
             current = None
         elif current is not None and line.startswith("#|"):
@@ -45,7 +45,7 @@ def main():
         sys.exit("Nothing found to install - was the whole file pasted?")
     waiting, bad = 0, 0
     for path, (sha, n) in sorted(files.items()):
-        pieces = [stash / f"f40d2b28_{path.replace('/', '__')}.{i}" for i in range(1, n + 1)]
+        pieces = [stash / f"008cdcca_{path.replace('/', '__')}.{i}" for i in range(1, n + 1)]
         if not all(p.exists() for p in pieces):
             have = sum(p.exists() for p in pieces)
             print(f"  waiting  {path}  ({have} of {n} pieces - run the other part(s))")
@@ -88,18 +88,18 @@ main()
 
 #@ HAS main.py 8ab08b56d237926575fea933200ff6a3512516dcdb3480265899e9d3a9cd0f94
 #@ HAS make_bundle.py 96afd027344b6418198835a8087f8961c4e1ae5d2821959b6ca5e4dbb45027f7
-#@ HAS README.md 97610a699e21db57f0cce9029ec1ca63939750663698d0f9b1dfa887fe90c75a
+#@ HAS README.md 19cf13239b395bfd339e10a506c1b6dc33b2bdfcac0c49e848dd83ca8439d0bc
 #@ HAS src/assess.py 6cae6bff1c899c218625b47a9d5ab2d43901c53e686f23c19065cee9c695a15e
 #@ HAS src/checklist.py 205b37b3d87a31835d67152c9f5d995c86fb36f4c06c5f5f1f61d106baa53e13
 #@ HAS src/collect.py 60df480238255a693ab3481021c573e05be7cb1c45d734f66c542f9bcdaa8b6f
-#@ HAS src/drafts.py dbef45cede05fb850dc22bccfaa0bde3ce7961da15e6d4710400df29b6b9b6e0
-#@ HAS src/gui.py 07ae24b3a39f7b2878c000e80c87e2dc57023b2c68e6589f986bbaa0986be6a5
-#@ HAS src/harden.py 3b37e0ca17cecab71b4ff7c581bdbf0a279b83838e4ce6750cdc81ababdf61c1
-#@ HAS src/rules.py 4f6db4a82c2e2a424778f5b6b71ee15246c16b5e9595f4287d44f638695f8438
-#@ HAS src/store.py 705cec739a6f67c732134f02e2ad8f231c12f91d9f36317475c63227c6615842
+#@ HAS src/drafts.py b8332a22c0b360677ae96d62166ffc45a0520f887e604cbc4bd827a68c3f672b
+#@ HAS src/gui.py 10e5c6bb610ed35384aab17c1d6876c3812aed38f97f448f834737756848b3c9
+#@ HAS src/harden.py 4355733216754660dbbdae4db8e3b9d89af6c6f6294b7b5edb3b340db9615071
+#@ HAS src/rules.py 6bb7a1e8f3301c94180d1fe3e77083558687c4f28589e6f121741333ebba921f
+#@ HAS src/store.py 969626c0c338a6461707215b2e4d363f85d9bde23c7d898e334e5d1f0c0e2edd
 #@ HAS tests/test_core.py 7799ea5ed198537a4199dbe645a553f27adb2f76007290cb87ac6774754b012b
-#@ HAS tests/test_drafts.py f4183f61ab7095f8aae70b9479b4fd906ecc4d202fe527e462201c542e8e6479
-#@ HAS tests/platform_samples.py 2cf4431390d9477b1cedf08cb8583909181889b1ca2aeb51ef5dc8dd5bc4ad0e
+#@ HAS tests/test_drafts.py 5f76ada15951c7df445cea793b999d0ae70747f72c02c9b80549c45daf9078bc
+#@ HAS tests/platform_samples.py 9d1bcaa7e174df3774be8a9029287c2d7d11dad3306395cf6a3b5f866fc2e9ee
 #@ HAS rules/stigtool_rules.json 5a309ccf4a5781d11ba69a023f9825c882d29e77124d4dbb2cb99562ff3a55e5
 #@ FILE main.py SHA 8ab08b56d237926575fea933200ff6a3512516dcdb3480265899e9d3a9cd0f94 CHUNK 1 OF 1
 #|"""STIG Group Assessment Tool - start here.
@@ -332,7 +332,7 @@ main()
 #|if __name__ == "__main__":
 #|    build(int(sys.argv[1]) if len(sys.argv) > 1 else None)
 #@ END
-#@ FILE README.md SHA 97610a699e21db57f0cce9029ec1ca63939750663698d0f9b1dfa887fe90c75a CHUNK 1 OF 1
+#@ FILE README.md SHA 19cf13239b395bfd339e10a506c1b6dc33b2bdfcac0c49e848dd83ca8439d0bc CHUNK 1 OF 1
 #|# STIG Group Assessment Tool
 #|
 #|Builds group STIG checklists for network devices from SolarWinds show-command output.
@@ -544,7 +544,7 @@ main()
 #|the `.ckl` files into Vulnerator. Use documentation IP addresses (192.0.2.x) in made-up files. Vulnerator reads
 #|STIG Viewer 2.x `.ckl` files, not STIG Viewer 3 `.cklb`.
 #|
-#|## Port roles: rules for uplinks, downlinks and access ports
+#|## Port roles: rules for uplinks, downlinks, access and trusted ports
 #|
 #|Uplinks are not on the same port on every switch, so rules find ports by **what they are**, not by number. The
 #|interface description says what the port is:
@@ -556,24 +556,35 @@ main()
 #| description DOWNLINK - ACC-SW-07 Te1/1/1        <- downlink toward an access switch
 #|interface GigabitEthernet1/0/5
 #| description ACCESS - Room 112 jack 4            <- client port (ACCESS or UNTRUSTED)
+#|interface GigabitEthernet1/0/6
+#| description TRUSTED - analog gateway rm 112     <- trusted device in a secure room (no 802.1x)
 #|```
 #|
 #|**Labelling rules:**
 #|- The keyword goes **first**. Anything after it is free text.
 #|- Upper / lower case does not matter.
 #|- The keywords are a team setting: *Team settings > Port roles* (defaults: `UPLINK`, `DOWNLINK`,
-#|  `ACCESS, UNTRUSTED`).
+#|  `ACCESS, UNTRUSTED`, `TRUSTED`).
+#|- **Add your own roles** there too (e.g. `camera` = `CAMERA, CCTV`). Built-in roles can be re-worded but not
+#|  removed, because the starter rules use them. Each keyword can mark only one role.
 #|- Changing a keyword there changes every rule that uses it.
+#|- A port with no label is in **no** role.
 #|
-#|**Using roles in a rule** (rule editor, Add condition):
+#|**Using roles in a rule** (rule editor, Add condition). Set *Look in* to EVERY section, click **Pick** next to
+#|the section box for "Every interface" or "Front-panel switch ports", then choose **Which ports (by role)**:
 #|
-#|| You want | Look in | Only / skip | It |
+#|| You want | Which ports | Skip shut-down ports | It |
 #||---|---|---|---|
-#|| every uplink has DHCP-snooping trust | EVERY section that starts with `interface` | only: `role:uplink`; if none found: FAIL | has a line (whole line) `ip dhcp snooping trust` |
-#|| nothing else has trust | EVERY section that starts with `interface` | skip: `role:uplink` | has NO line (whole line) `ip dhcp snooping trust` |
-#|| every client port has 802.1x, BPDU Guard, storm control, a parking / user VLAN... | EVERY section that starts with `interface` | only: `role:access`; skip `shutdown` | has a line ... |
-#|| every downlink has Root Guard | EVERY section that starts with `interface` | only: `role:downlink` | has a line `spanning-tree guard root` |
-#|| every live port is labelled | EVERY section that starts with `interface` | skip `shutdown` | has a line `role:any` |
+#|| every uplink has DHCP-snooping trust | Only: uplink (if none found: FAIL) | yes | has a line (whole line) `ip dhcp snooping trust` |
+#|| nothing else has trust | Every port EXCEPT: uplink | no | has NO line (whole line) `ip dhcp snooping trust` |
+#|| every client port has BPDU Guard, storm control... | Only: access | yes | has a line ... |
+#|| every port that is not infrastructure or trusted has 802.1x (labelled ACCESS or not labelled) | Every port EXCEPT: uplink, downlink, trusted | yes | has a line (whole line) `dot1x pae authenticator` |
+#|| every downlink has Root Guard | Only: downlink | yes | has a line `spanning-tree guard root` |
+#|| every live port is labelled | Any port | yes | has a line `role:any` |
+#|
+#|The *also only / also skip* boxes take any other filters, **one per line**: a section must match every
+#|"only" line and is skipped if it matches any "skip" line (e.g. skip `dot1x pae authenticator` *and* trunks).
+#|In the stored rule, roles are written as `role:uplink, downlink, trusted` lines in those same filters.
 #|
 #|**Tips:**
 #|- **"If no sections found"** decides what happens on a switch with no port in that role.
@@ -581,6 +592,11 @@ main()
 #|    switch is flagged instead of quietly passing.
 #|  - Use **PASS** when the role is optional (most access switches have no downlinks).
 #|- **Pair "must have" with "must not have"** for trust settings. Trust on a client port is the real danger.
+#|- **"Either / or" per port** (802.1x OR parked): split it into conditions that each skip the ports the other
+#|  covers. Live ports must have 802.1x (skip shut ports); shut ports must be in the parking VLAN (skip ports
+#|  that have 802.1x). The CISC-L2-000020 starter draft is built this way.
+#|- **Catch the obvious violations too:** every port EXCEPT trusted has NO `authentication open` /
+#|  `port-control force-authorized` line.
 #|- **Add a drift check:** every `role:uplink` port has `switchport mode trunk`. A mislabelled port then shows up.
 #|- **Groups without client ports** (core / distribution) still fail the access checks, which is the point for
 #|  access switches. For those groups, choose a different rule version or mark the control N/A.
@@ -591,7 +607,9 @@ main()
 #|**Starter drafts that use roles:**
 #|- DHCP snooping trust and DAI trust on uplinks only.
 #|- Root Guard on downlinks.
-#|- 802.1x, BPDU Guard, unknown-unicast blocking, IP Source Guard and storm control on access ports.
+#|- 802.1x (CISC-L2-000020): every front-panel host port that is not an uplink, downlink or trusted port runs
+#|  802.1x or is shut down in VLAN 2 (edit to your parking VLAN); no non-trusted port uses open authentication.
+#|- BPDU Guard, unknown-unicast blocking, IP Source Guard and storm control on access ports.
 #|- User-facing ports must be access ports.
 #|- Every live port must be labelled.
 #|
@@ -2029,7 +2047,7 @@ main()
 #|        warnings.append("No device sections found. Is this a SolarWinds 'Execute Command Script' output file?")
 #|    return {"devices": devices, "warnings": warnings, "job_lines": job_lines}
 #@ END
-#@ FILE src/drafts.py SHA dbef45cede05fb850dc22bccfaa0bde3ce7961da15e6d4710400df29b6b9b6e0 CHUNK 1 OF 1
+#@ FILE src/drafts.py SHA b8332a22c0b360677ae96d62166ffc45a0520f887e604cbc4bd827a68c3f672b CHUNK 1 OF 1
 #|"""Starter DRAFT rules for the Cisco IOS-XE (Switch / Router) and NX-OS STIGs.
 #|
 #|These are a starting point written from each control's check text and from how the target platforms
@@ -2143,7 +2161,14 @@ main()
 #|NOT_UPLINK = dict(exclude="role:uplink", if_none="pass")
 #|ROLE_NOTE = ("Uses PORT ROLES from interface descriptions (keywords are a team setting: Team settings > Port roles): uplinks "
 #|             "'description UPLINK - ...', downlinks 'description DOWNLINK - ...', client ports "
-#|             "'description ACCESS - ...' or 'UNTRUSTED - ...'. ")
+#|             "'description ACCESS - ...' or 'UNTRUSTED - ...', trusted ports 'description TRUSTED - ...'. ")
+#|# Ports that must authenticate: every front-panel host port that is not an uplink, downlink or trusted port
+#|# (labelled ACCESS or not labelled at all). Trunks, routed ports and port-channel members are not host ports.
+#|NOT_INFRA = "role:uplink, downlink, trusted"
+#|IOS_NOT_HOST = "re:^\\s*(switchport mode trunk|no switchport|vrf forwarding|channel-group)\\b"
+#|DOT1X_LIVE = dict(section_how="regex", exclude="\n".join([NOT_INFRA, IOS_NOT_HOST, "re:^\\s*shutdown\\s*$"]))
+#|DOT1X_PARKED = dict(section_how="regex", only="re:^\\s*shutdown\\s*$",
+#|                    exclude="\n".join([NOT_INFRA, IOS_NOT_HOST, "dot1x pae authenticator"]))
 #|LIVE_IOS_PORT = "re:^\\s*(shutdown|no switchport|vrf forwarding|channel-group)\\b"
 #|
 #|# Not-applicable shortcuts (the feature is not configured on the device)
@@ -2369,12 +2394,21 @@ main()
 #|        "240", "250", "260", "270", "280", "290", "300", "310", "320", "330", "340", "350", "390", "391", "392",
 #|        "393", "394", "395", "396", "397", "398", "400", "410", "420", "430", "440", "450", "460")},
 #|    # ---- L2S (Catalyst 9300)
-#|    "CISC-L2-000020": R(every("interface", rx_has(r"^\s*(authentication port-control auto|access-session port-control "
-#|                                                    r"auto|dot1x pae authenticator|mab)\b"), **ROLE_ACCESS),
+#|    "CISC-L2-000020": R(every(IOS_PORT, has("dot1x pae authenticator", how="whole line"), **DOT1X_LIVE),
+#|                        every(IOS_PORT, rx_has(r"^\s*(authentication|access-session) port-control auto\s*$"),
+#|                              **DOT1X_LIVE),
+#|                        every(IOS_PORT, has("switchport access vlan 2", how="whole line"), **DOT1X_PARKED),
+#|                        every(IOS_PORT, rx_lacks(r"^\s*(authentication open|(authentication|access-session) "
+#|                                                 r"port-control force-authorized)\b"),
+#|                              section_how="regex", exclude="role:trusted"),
 #|                        has("dot1x system-auth-control", how="whole line"),
-#|                        note=ROLE_NOTE + "Every access port needs 802.1x / MAB (legacy 'authentication port-control' "
-#|                             "or IBNS 2.0 'access-session'). Ports in telecom rooms / wiring closets are exempt - "
-#|                             "label them differently."),
+#|                        note=ROLE_NOTE + "Every host port that is not an UPLINK, DOWNLINK or TRUSTED port - labelled "
+#|                             "ACCESS or not labelled at all - must either run 802.1x (conditions 1-2: 'dot1x pae "
+#|                             "authenticator' and port-control auto, legacy 'authentication' or IBNS 2.0 "
+#|                             "'access-session') or be shut down in the parking VLAN (condition 3 - EDIT 'vlan 2' to "
+#|                             "your parking VLAN). Shut ports with 802.1x pass either way. Condition 4: no "
+#|                             "non-trusted port may use open authentication or force-authorized. Ports in secure "
+#|                             "rooms (e.g. analog gateways) are exempt: label them 'description TRUSTED - ...'."),
 #|    "CISC-L2-000030": R(rx_has(r"VTP Operating Mode\s*:\s*Off", cmd="show vtp status"),
 #|                        rx_has(r"VTP Password:\s*\S+", cmd="show vtp password"), mode="ANY",
 #|                        cmds=["show vtp status", "show vtp password"],
@@ -2777,7 +2811,7 @@ main()
 #|        lines += [f"  {stig} {vid} ({ver}) {title[:80]}" for stig, vid, ver, title, _ in report["no_entry"]]
 #|    return "\n".join(lines)
 #@ END
-#@ FILE src/gui.py SHA 07ae24b3a39f7b2878c000e80c87e2dc57023b2c68e6589f986bbaa0986be6a5 CHUNK 1 OF 1
+#@ FILE src/gui.py SHA 10e5c6bb610ed35384aab17c1d6876c3812aed38f97f448f834737756848b3c9 CHUNK 1 OF 1
 #|"""Tkinter user interface, in two modes (switch at the top):
 #|
 #|  Run an assessment   Assessment (collect -> import -> review -> write checklists), Hardening scripts
@@ -3370,7 +3404,7 @@ main()
 #|            team.add_radiobutton(label=f"    {label}", value=fmt, variable=self.fmt_var, command=self.set_format)
 #|        team.add_separator()
 #|        team.add_command(label="Where reasons go in the checklist...", command=lambda: PlacementDialog(self))
-#|        team.add_command(label="Port roles (uplink / downlink / access keywords)...",
+#|        team.add_command(label="Port roles (uplink / downlink / access / trusted / your own)...",
 #|                         command=lambda: PortRolesDialog(self))
 #|        team.add_command(label="Site values (DoD banner, NTP / AAA / syslog servers...)...",
 #|                         command=lambda: SiteValuesDialog(self))
@@ -5892,11 +5926,21 @@ main()
 #|    "pattern": "Advanced: a regular expression searched across the whole text. Use \\n to span lines.",
 #|    "no_pattern": "Advanced: passes when the regular expression is NOT found anywhere.",
 #|}
-#|SCOPE_HELP = ("A section is a line plus the indented lines under it, e.g. 'line vty 0 4' and its settings, "
-#|              "or 'interface GigabitEthernet1/0/1' and its settings. 'Only' / 'skip' look for a line STARTING "
-#|              "with the text, so skip 'shutdown' does not skip 'no shutdown'. Start with re: for a regex. "
-#|              "Port roles: type role:uplink, role:downlink, role:access or role:any to pick interfaces by their "
-#|              "description keyword (set on the Device Groups tab).")
+#|SCOPE_HELP = ("A section is a line plus the indented lines under it, e.g. 'interface GigabitEthernet1/0/1' and "
+#|              "its settings. Port roles come from the interface description (Team settings > Port roles); a port "
+#|              "with no role label is not in any role, so 'every port EXCEPT uplink, trusted' still checks "
+#|              "unlabelled ports. The 'also' boxes take one filter per line, matched at the START of a line (so "
+#|              "'shutdown' is not 'no shutdown'); start a line with re: for a regex.")
+#|PORT_MODES = {"all": "Any port (no role filter)", "only": "Only ports with these roles:",
+#|              "except": "Every port EXCEPT these roles:"}
+#|SECTION_PRESETS = [
+#|    ("Every interface", "interface", "starts with"),
+#|    ("Front-panel switch ports, IOS-XE (no Vlan / Loopback / Port-channel / AppGig)",
+#|     r"^interface (?!AppGig)\S*(Ethernet|GigE)\d", "regex"),
+#|    ("Ethernet ports, NX-OS", r"^interface Ethernet\d", "regex"),
+#|    ("vty lines", "line vty", "starts with"),
+#|    ("Console line", "line con", "starts with"),
+#|]
 #|
 #|
 #|# Worked examples for the condition dialog: (menu text, condition fields)
@@ -5912,6 +5956,20 @@ main()
 #|     {"scope": "every", "section": "interface", "section_how": "starts with", "only": "role:access",
 #|      "exclude": "shutdown", "if_none": "pass", "check": "has", "how": "starts with",
 #|      "text": "spanning-tree bpduguard enable"}),
+#|    ("Every live port that is not an uplink / downlink / trusted must have 802.1x",
+#|     {"scope": "every", "section": "interface", "section_how": "starts with", "only": "",
+#|      "exclude": "role:uplink, downlink, trusted\n"
+#|                 "re:^\\s*(shutdown|switchport mode trunk|no switchport|channel-group)\\b",
+#|      "if_none": "pass", "check": "has", "how": "whole line", "text": "dot1x pae authenticator"}),
+#|    ("Shut ports without 802.1x must be parked in a VLAN - e.g. vlan 2",
+#|     {"scope": "every", "section": "interface", "section_how": "starts with", "only": "shutdown",
+#|      "exclude": "role:uplink, downlink, trusted\ndot1x pae authenticator\n"
+#|                 "re:^\\s*(switchport mode trunk|no switchport|channel-group)\\b",
+#|      "if_none": "pass", "check": "has", "how": "whole line", "text": "switchport access vlan 2"}),
+#|    ("No port (except trusted ones) may have open authentication",
+#|     {"scope": "every", "section": "interface", "section_how": "starts with", "exclude": "role:trusted",
+#|      "if_none": "pass", "check": "lacks", "how": "regex",
+#|      "text": "^\\s*(authentication open|(authentication|access-session) port-control force-authorized)\\b"}),
 #|    ("A number must be at most / at least N - e.g. vty exec-timeout at most 10",
 #|     {"scope": "every", "section": "line vty", "section_how": "starts with", "if_none": "fail", "check": "number",
 #|      "how": "starts with", "text": "exec-timeout", "op": "<=", "value": "10"}),
@@ -5931,7 +5989,7 @@ main()
 #|        if not c["command"]:
 #|            c["command"] = default_cmd if default_cmd in commands else commands[0]
 #|        self.v = {k: tk.StringVar(value=str(c[k])) for k in
-#|                  ("command", "section", "section_how", "only", "exclude", "text", "how", "op", "value")}
+#|                  ("command", "section", "section_how", "text", "how", "op", "value")}
 #|        self.scope_labels = {v: k for k, v in engine.SCOPES.items()}
 #|        self.check_labels = {v: k for k, v in engine.CHECKS.items()}
 #|        self.v["scope"] = tk.StringVar(value=engine.SCOPES[c["scope"]])
@@ -5965,11 +6023,36 @@ main()
 #|        self.w_section_how = ttk.Combobox(sec, textvariable=self.v["section_how"], values=engine.HOWS,
 #|                                          state="readonly", width=11)
 #|        self.w_section_how.pack(side="left")
-#|        self.w_section = ttk.Entry(sec, textvariable=self.v["section"], width=46)
+#|        self.w_section = ttk.Entry(sec, textvariable=self.v["section"], width=36)
 #|        self.w_section.pack(side="left", padx=4)
+#|        self.w_section_pick = more_button(sec, [(label, lambda s=s, h=h: (self.v["section"].set(s),
+#|                                                                          self.v["section_how"].set(h)))
+#|                                                for label, s, h in SECTION_PRESETS], "Pick")
+#|        self.w_section_pick.pack(side="left")
 #|        row("   ...section first line:", sec)
-#|        self.w_only = row("   ...only sections with a line starting:", ttk.Entry(f, textvariable=self.v["only"]))
-#|        self.w_exclude = row("   ...skip sections with a line starting:", ttk.Entry(f, textvariable=self.v["exclude"]))
+#|
+#|        # Port roles and shut ports as plain choices; they are stored as role: / shutdown filter lines
+#|        split = engine.split_port_filters(c.get("only"), c["exclude"])
+#|        self.port_mode = tk.StringVar(value=PORT_MODES[split["mode"]])
+#|        self.role_vars = {name: tk.BooleanVar(value=name in split["roles"]) for name in engine.PORT_ROLES}
+#|        for name in split["roles"]:  # a role the rule uses that is no longer a team role: keep it visible
+#|            self.role_vars.setdefault(name, tk.BooleanVar(value=True))
+#|        self.skip_shut = tk.BooleanVar(value=split["skip_shut"])
+#|        ports = ttk.Frame(f)
+#|        self.w_port_mode = ttk.Combobox(ports, textvariable=self.port_mode, values=list(PORT_MODES.values()),
+#|                                        state="readonly", width=30)
+#|        self.w_port_mode.pack(side="left")
+#|        self.w_roles = []
+#|        for name, var in self.role_vars.items():
+#|            cb = ttk.Checkbutton(ports, text=name, variable=var)
+#|            cb.pack(side="left", padx=(6, 0))
+#|            self.w_roles.append(cb)
+#|        row("   ...which ports (by role):", ports)
+#|        self.w_skip_shut = row("", ttk.Checkbutton(f, text="Skip shut-down ports / sections ('shutdown', not "
+#|                                                           "'no shutdown')", variable=self.skip_shut))
+#|        # Anything else: one filter per line
+#|        self.w_only = row("   ...also only sections with a line starting:", self.filter_box(f, split["only"]))
+#|        self.w_exclude = row("   ...also skip sections with a line starting:", self.filter_box(f, split["exclude"]))
 #|        self.w_if_none = row("   ...if no sections found:",
 #|                             ttk.Combobox(f, textvariable=self.v["if_none"], state="readonly",
 #|                                          values=["counts as FAIL", "counts as PASS"]))
@@ -6009,7 +6092,7 @@ main()
 #|        ttk.Button(b, text="OK", command=self.ok).pack(side="left", padx=4)
 #|        ttk.Button(b, text="Cancel", command=self.destroy).pack(side="left", padx=4)
 #|
-#|        for var in list(self.v.values()) + [self.ignore]:
+#|        for var in list(self.v.values()) + [self.ignore, self.port_mode, self.skip_shut] + list(self.role_vars.values()):
 #|            var.trace_add("write", lambda *a: self.update_view())
 #|        self.commands = commands
 #|        self.update_view()
@@ -6017,45 +6100,79 @@ main()
 #|        self.grab_set()
 #|        parent.wait_window(self)
 #|
+#|    def filter_box(self, parent, value):
+#|        box = tk.Text(parent, height=2, width=60, wrap="none", font=("Segoe UI", 10), undo=True)
+#|        box.insert("1.0", value or "")
+#|        box.bind("<KeyRelease>", lambda e: self.update_view(), add="+")
+#|        box.bind("<<Paste>>", lambda e: self.after_idle(self.update_view), add="+")
+#|        return box
+#|
 #|    def use_example(self, example):
 #|        c = {**engine.NEW_CONDITION, "command": self.v["command"].get(), **example}
-#|        for k in ("section", "section_how", "only", "exclude", "text", "how", "op", "value"):
+#|        split = engine.split_port_filters(c["only"], c["exclude"])
+#|        for box, k in ((self.w_only, "only"), (self.w_exclude, "exclude")):
+#|            text_set(box, split[k])
+#|        self.port_mode.set(PORT_MODES[split["mode"]])
+#|        for name, var in self.role_vars.items():
+#|            var.set(name in split["roles"])
+#|        self.skip_shut.set(split["skip_shut"])
+#|        for k in ("section", "section_how", "text", "how", "op", "value"):
 #|            self.v[k].set(str(c[k]))
 #|        self.v["scope"].set(engine.SCOPES[c["scope"]])
 #|        self.v["check"].set(engine.CHECKS[c["check"]])
 #|        self.v["if_none"].set("counts as FAIL" if c["if_none"] == "fail" else "counts as PASS")
 #|        self.ignore.set(bool(c["ignore_case"]))
+#|        self.update_view()
+#|
+#|    def port_choice(self):
+#|        mode = next(k for k, v in PORT_MODES.items() if v == self.port_mode.get())
+#|        return mode, [name for name, var in self.role_vars.items() if var.get()]
 #|
 #|    def current(self):
+#|        mode, roles = self.port_choice()
+#|        only, exclude = engine.join_port_filters(mode, roles, self.skip_shut.get(), text_get(self.w_only),
+#|                                                 text_get(self.w_exclude))
 #|        return {
 #|            "command": self.v["command"].get(), "scope": self.scope_labels[self.v["scope"].get()],
 #|            "section": self.v["section"].get(), "section_how": self.v["section_how"].get(),
-#|            "only": self.v["only"].get(), "exclude": self.v["exclude"].get(),
+#|            "only": only, "exclude": exclude,
 #|            "if_none": "fail" if "FAIL" in self.v["if_none"].get() else "pass",
 #|            "check": self.check_labels[self.v["check"].get()], "text": self.v["text"].get(),
 #|            "how": self.v["how"].get(), "ignore_case": self.ignore.get(),
 #|            "op": self.v["op"].get(), "value": self.v["value"].get().strip(),
 #|        }
 #|
+#|    def problems(self, c):
+#|        errs = engine.condition_problems(c, self.commands)
+#|        mode, roles = self.port_choice()
+#|        if c["scope"] != "all" and mode != "all" and not roles:
+#|            errs.append("tick at least one port role (or choose 'Any port')")
+#|        return errs
+#|
 #|    def update_view(self):
 #|        c = self.current()
 #|        sectioned = c["scope"] != "all"
-#|        for w in (self.w_section, self.w_only, self.w_exclude):
-#|            w.configure(state="normal" if sectioned else "disabled")
-#|        for w in (self.w_section_how, self.w_if_none):
+#|        self.w_section.configure(state="normal" if sectioned else "disabled")
+#|        for w in (self.w_only, self.w_exclude):
+#|            w.configure(state="normal" if sectioned else "disabled", background="white" if sectioned else "#f0f0f0")
+#|        for w in (self.w_section_how, self.w_if_none, self.w_port_mode):
 #|            w.configure(state="readonly" if sectioned else "disabled")
+#|        mode, _ = self.port_choice()
+#|        for w in self.w_roles:
+#|            w.configure(state="normal" if sectioned and mode != "all" else "disabled")
+#|        for w in (self.w_skip_shut, self.w_section_pick):
+#|            w.configure(state="normal" if sectioned else "disabled")
 #|        numeric = c["check"] in ("number", "count")
 #|        self.w_op.configure(state="readonly" if numeric else "disabled")
 #|        self.w_value.configure(state="normal" if numeric else "disabled")
 #|        self.w_how.configure(state="disabled" if c["check"] in ("pattern", "no_pattern") else "readonly")
 #|        self.help.configure(text=CHECK_HELP[c["check"]])
 #|        self.preview.configure(text=engine.describe(c))
-#|        errs = engine.condition_problems(c, self.commands)
-#|        self.errors.configure(text="\n".join(f"- {e}" for e in errs))
+#|        self.errors.configure(text="\n".join(f"- {e}" for e in self.problems(c)))
 #|
 #|    def ok(self):
 #|        c = self.current()
-#|        errs = engine.condition_problems(c, self.commands)
+#|        errs = self.problems(c)
 #|        if errs:
 #|            return messagebox.showerror("Fix the condition", "\n".join(errs), parent=self)
 #|        self.result = c
@@ -6643,7 +6760,13 @@ main()
 #|
 #|
 #|class PortRolesDialog(tk.Toplevel):
-#|    """Team setting: the interface-description keywords that mark uplink / downlink / access ports."""
+#|    """Team setting: the interface-description keywords that mark port roles. The built-in roles (used by the
+#|    starter rules) can be re-worded but not removed; the team can add its own."""
+#|
+#|    BUILT_IN = {"uplink": "Uplinks (toward distribution / core):",
+#|                "downlink": "Downlinks (toward access switches):",
+#|                "access": "Access / client ports (untrusted):",
+#|                "trusted": "Trusted ports (e.g. analog gateways in a secure room - no 802.1x):"}
 #|
 #|    def __init__(self, app):
 #|        super().__init__(app)
@@ -6653,35 +6776,93 @@ main()
 #|        self.resizable(False, False)
 #|        f = ttk.Frame(self, padding=12)
 #|        f.pack()
-#|        ttk.Label(f, justify="left", wraplength=620, text=(
-#|            "Rules find uplinks, downlinks and client ports by the START of the interface description, so the "
-#|            "port number does not matter. Label ports like 'description UPLINK - DIST-SW-01 Te2/0/14' or "
-#|            "'description ACCESS - Room 112 jack 4'. Separate several keywords with commas. Upper / lower case "
-#|            "does not matter. In a rule, use role:uplink, role:downlink, role:access or role:any.")).grid(
-#|            row=0, column=0, columnspan=2, sticky="w", pady=(0, 10))
+#|        ttk.Label(f, justify="left", wraplength=640, text=(
+#|            "Rules find ports by the START of the interface description, so the port number does not matter. "
+#|            "Label ports like 'description UPLINK - DIST-SW-01 Te2/0/14' or 'description TRUSTED - analog "
+#|            "gateway rm 112'. Separate several keywords with commas. Upper / lower case does not matter. In a "
+#|            "rule, use role:trusted, several roles at once (role:uplink, downlink, trusted) or role:any (any "
+#|            "labelled port).")).pack(anchor="w", pady=(0, 10))
+#|        self.rows_frame = ttk.Frame(f)
+#|        self.rows_frame.pack(fill="x")
 #|        self.vars = {}
-#|        labels = {"uplink": "Uplinks (toward distribution / core):",
-#|                  "downlink": "Downlinks (toward access switches):",
-#|                  "access": "Access / client ports (untrusted):"}
-#|        for r, role in enumerate(("uplink", "downlink", "access"), 1):
-#|            ttk.Label(f, text=labels[role]).grid(row=r, column=0, sticky="w", pady=3)
-#|            var = tk.StringVar(value=app.settings["port_roles"][role])
-#|            ttk.Entry(f, textvariable=var, width=36).grid(row=r, column=1, sticky="w", padx=6)
-#|            self.vars[role] = var
+#|        saved = app.settings["port_roles"]
+#|        for role, label in self.BUILT_IN.items():
+#|            self.add_row(role, saved.get(role, ""), label)
+#|        for role, words in saved.items():
+#|            if role not in self.BUILT_IN:
+#|                self.add_row(role, words)
+#|        add = ttk.Frame(f)
+#|        add.pack(fill="x", pady=(10, 0))
+#|        ttk.Label(add, text="New role name:").pack(side="left")
+#|        self.new_name = tk.StringVar()
+#|        entry = ttk.Entry(add, textvariable=self.new_name, width=16)
+#|        entry.pack(side="left", padx=4)
+#|        entry.bind("<Return>", lambda e: self.add_role())
+#|        ttk.Button(add, text="Add role", command=self.add_role).pack(side="left")
+#|        ttk.Label(add, text="  lower case, e.g. camera or voice", foreground="#555").pack(side="left")
 #|        b = ttk.Frame(f)
-#|        b.grid(row=5, column=0, columnspan=2, pady=(10, 0))
-#|        ttk.Button(b, text="Save", command=self.save).pack(side="left", padx=4)
+#|        b.pack(pady=(12, 0))
+#|        ttk.Button(b, text="Save", command=self.save, style="Accent.TButton").pack(side="left", padx=4)
 #|        ttk.Button(b, text="Cancel", command=self.destroy).pack(side="left", padx=4)
 #|        self.grab_set()
 #|        app.wait_window(self)
+#|
+#|    def add_row(self, role, words, label=None):
+#|        row = ttk.Frame(self.rows_frame)
+#|        row.pack(fill="x", pady=2)
+#|        ttk.Label(row, text=label or f"role:{role}", width=58 if label else 20).pack(side="left")
+#|        if not label:
+#|            ttk.Label(row, text="(team role)", foreground="#555", width=36).pack(side="left")
+#|        var = tk.StringVar(value=words)
+#|        ttk.Entry(row, textvariable=var, width=30).pack(side="left", padx=6)
+#|        if not label:
+#|            ttk.Button(row, text="Remove", width=8,
+#|                       command=lambda: (row.destroy(), self.vars.pop(role, None))).pack(side="left")
+#|        self.vars[role] = var
+#|
+#|    def add_role(self):
+#|        name = self.new_name.get().strip().lower()
+#|        if not engine.ROLE_NAME_RE.match(name) or name == "any":
+#|            return messagebox.showerror("Port roles", "A role name is one lower-case word (letters, digits, - or _), "
+#|                                                      "starting with a letter, and not 'any'.", parent=self)
+#|        if name in self.vars:
+#|            return messagebox.showerror("Port roles", f"There is already a role called {name}.", parent=self)
+#|        self.add_row(name, name.upper())
+#|        self.new_name.set("")
 #|
 #|    def save(self):
 #|        roles = {k: ", ".join(w.strip() for w in v.get().split(",") if w.strip()) for k, v in self.vars.items()}
 #|        if not all(roles.values()):
 #|            return messagebox.showerror("Port roles", "Every role needs at least one keyword.", parent=self)
+#|        owners = {}
+#|        for role, words in roles.items():
+#|            for w in words.split(", "):
+#|                owners.setdefault(w.upper(), []).append(role)
+#|        clash = {w: r for w, r in owners.items() if len(r) > 1}
+#|        if clash:
+#|            return messagebox.showerror("Port roles", "A keyword can only mark one role:\n" + "\n".join(
+#|                f"{w}: {', '.join(r)}" for w, r in clash.items()), parent=self)
+#|        used = self.used_roles()
+#|        gone = sorted(r for r in used if r not in roles)
+#|        if gone and not messagebox.askokcancel(
+#|                "Port roles", f"Rules still use role(s) you removed: {', '.join(gone)}. Those conditions will show "
+#|                              "a problem (and give Not Reviewed) until they are changed. Save anyway?", parent=self):
+#|            return
 #|        store.set_setting("port_roles", roles)
 #|        self.app.reload()
 #|        self.destroy()
+#|
+#|    def used_roles(self):
+#|        """Role names that saved rules refer to."""
+#|        found = set()
+#|        for rule in self.app.rules_db["rules"]:
+#|            for key in ("pass_logic", "na_logic"):
+#|                for cond in (rule.get(key) or {}).get("conditions", []):
+#|                    for text in engine.filter_lines(cond.get("only")) + engine.filter_lines(cond.get("exclude")) \
+#|                            + [cond.get("text", "")]:
+#|                        if engine.is_role(text):
+#|                            found |= {n.strip().lower() for n in text.strip()[5:].split(",") if n.strip()}
+#|        return found - {"any"}
 #|
 #|
 #|class RuleChoicesDialog(tk.Toplevel):
@@ -7752,7 +7933,7 @@ main()
 #|        if sel:
 #|            text_set(self.preview, self.paths[sel[0]].read_text(encoding="utf-8"), readonly=True)
 #@ END
-#@ FILE src/harden.py SHA 3b37e0ca17cecab71b4ff7c581bdbf0a279b83838e4ce6750cdc81ababdf61c1 CHUNK 1 OF 1
+#@ FILE src/harden.py SHA 4355733216754660dbbdae4db8e3b9d89af6c6f6294b7b5edb3b340db9615071 CHUNK 1 OF 1
 #|"""Hardening scripts: fix commands per rule, and the scripts generated from them.
 #|
 #|Every rule can carry two blocks of fix commands (rule["fix"] = {"low": text, "high": text}):
@@ -7949,7 +8130,10 @@ main()
 #|    "CISC-RT-000950": F(high=["ip msdp peer <MSDP_PEER> connect-source Loopback0"]),
 #|    # ---- L2S (Catalyst 9300)
 #|    "CISC-L2-000020": F(high=["dot1x system-auth-control", "{each failing section of condition 1}",
-#|                              " authentication port-control auto", " dot1x pae authenticator", " mab"]),
+#|                              " dot1x pae authenticator", " mab", "{each failing section of condition 2}",
+#|                              " authentication port-control auto", "{each failing section of condition 4}",
+#|                              " no authentication open", " authentication port-control auto"],
+#|                        low=["{each failing section of condition 3}", " switchport access vlan <PARKING_VLAN>"]),
 #|    "CISC-L2-000030": F(high=["vtp mode off"]),
 #|    "CISC-L2-000040": F(high=["! build the QoS policy per the site QoS design, then on each port:",
 #|                              "interface <INTERFACE>", " service-policy output <QOS_POLICY>"]),
@@ -7980,7 +8164,7 @@ main()
 #|    "CISC-L2-000250": F(high=["{each failing section of condition 1}", " switchport mode access",
 #|                              " switchport nonegotiate"],
 #|                        low=["{each failing section of condition 2}",
-#|                             " ! label this port: description UPLINK - ... / DOWNLINK - ... / ACCESS - ..."]),
+#|                             " ! label this port: description UPLINK - ... / DOWNLINK - ... / ACCESS - ... / TRUSTED - ..."]),
 #|}
 #|
 #|
@@ -8140,7 +8324,7 @@ main()
 #|    "CISC-RT-000950": F(high=["ip msdp peer <MSDP_PEER> connect-source loopback0 remote-as <ASN>"]),
 #|    "CISC-L2-000250": F(high=["{each failing section of condition 1}", "  switchport mode access"],
 #|                        low=["{each failing section of condition 2}",
-#|                             "  ! label this port: description UPLINK - ... / DOWNLINK - ... / ACCESS - ..."]),
+#|                             "  ! label this port: description UPLINK - ... / DOWNLINK - ... / ACCESS - ... / TRUSTED - ..."]),
 #|}
 #|
 #|FIX_LIBRARY = {"IOSXE_SW": FIX_IOSXE, "IOSXE_RTR": FIX_IOSXE, "NXOS": FIX_NXOS}
@@ -8154,9 +8338,9 @@ main()
 #|
 #|def _header_for(cond):
 #|    section = cond.get("section", "")
-#|    only = (cond.get("only") or "").strip().lower()
+#|    only = next((f.lower() for f in (cond.get("only") or "").split("\n") if f.strip().lower().startswith("role:")), "")
 #|    if "interface" in section:
-#|        role = only[5:].strip().upper() if only.startswith("role:") else ""
+#|        role = "_".join(n.strip() for n in only.strip()[5:].split(",") if n.strip()).upper() if only else ""
 #|        return f"interface <{role + '_' if role else ''}INTERFACE>"
 #|    if cond.get("section_how") == "regex" or not section.strip():
 #|        return "<SECTION>"
@@ -8425,7 +8609,7 @@ main()
 #|                written.append((_write(folder, f"{host}_{suffix}.txt", text), n))
 #|    return folder, written, skipped
 #@ END
-#@ FILE src/rules.py SHA 4f6db4a82c2e2a424778f5b6b71ee15246c16b5e9595f4287d44f638695f8438 CHUNK 1 OF 1
+#@ FILE src/rules.py SHA 6bb7a1e8f3301c94180d1fe3e77083558687c4f28589e6f121741333ebba921f CHUNK 1 OF 1
 #|"""Rule engine: plain-English conditions evaluated against show-command output.
 #|
 #|A rule belongs to one STIG control and says:
@@ -8442,10 +8626,12 @@ main()
 #|  section, section_how   how to find section first lines (e.g. starts with "line vty")
 #|  only      only check sections that have a line starting with this (e.g. "ip address")
 #|  exclude   skip sections that have a line starting with this (e.g. "shutdown" - not "no shutdown")
-#|            (only / exclude: start the text with "re:" to use a regular expression instead)
-#|            Port roles: "role:uplink", "role:downlink", "role:access" or "role:any" (in only / exclude, or as
-#|            the text to look for) mean an interface description starting with that role's keyword(s), which
-#|            are a team setting (default UPLINK / DOWNLINK / ACCESS, UNTRUSTED).
+#|            (only / exclude: start the text with "re:" to use a regular expression instead; one filter per
+#|            line - a section must match EVERY only line and is skipped when it matches ANY exclude line)
+#|            Port roles: "role:uplink", "role:trusted", "role:uplink, downlink" or "role:any" (in only / exclude,
+#|            or as the text to look for) mean an interface description starting with that role's keyword(s),
+#|            which are a team setting (default UPLINK / DOWNLINK / ACCESS, UNTRUSTED / TRUSTED, plus any roles
+#|            the team adds).
 #|  if_none   "fail" or "pass" when no sections are found
 #|  check     has | lacks | number | count | pattern | no_pattern
 #|  text, how, ignore_case   what to look for and how to match it
@@ -8504,15 +8690,18 @@ main()
 #|
 #|
 #|# Port-role keywords (team setting, see set_port_roles). An interface is in a role when its description starts
-#|# with one of the role's keywords, e.g. "description UPLINK - DIST-SW-01 Te2/0/14".
-#|PORT_ROLES = {"uplink": "UPLINK", "downlink": "DOWNLINK", "access": "ACCESS, UNTRUSTED"}
+#|# with one of the role's keywords, e.g. "description UPLINK - DIST-SW-01 Te2/0/14". The built-in roles are always
+#|# there; teams can add their own (e.g. "camera": "CAMERA, CCTV").
+#|PORT_ROLES = {"uplink": "UPLINK", "downlink": "DOWNLINK", "access": "ACCESS, UNTRUSTED", "trusted": "TRUSTED"}
 #|DEFAULT_PORT_ROLES = dict(PORT_ROLES)
+#|ROLE_NAME_RE = re.compile(r"^[a-z][a-z0-9_-]*$")
 #|
 #|
 #|def set_port_roles(roles):
 #|    PORT_ROLES.clear()
 #|    PORT_ROLES.update(DEFAULT_PORT_ROLES)
-#|    PORT_ROLES.update({k: v for k, v in (roles or {}).items() if k in PORT_ROLES and str(v).strip()})
+#|    PORT_ROLES.update({k: v for k, v in (roles or {}).items()
+#|                       if ROLE_NAME_RE.match(k) and k != "any" and str(v).strip()})
 #|
 #|
 #|def role_words(role):
@@ -8524,18 +8713,66 @@ main()
 #|    return (text or "").strip().lower().startswith("role:")
 #|
 #|
+#|def role_names(text):
+#|    """'role:uplink, downlink, trusted' -> ['uplink', 'downlink', 'trusted']."""
+#|    names = [n.strip().lower() for n in text.strip()[5:].split(",") if n.strip()]
+#|    for name in names:
+#|        if name != "any" and name not in PORT_ROLES:
+#|            raise re.error(f"unknown port role '{name}' (roles: {', '.join(PORT_ROLES)} or any)")
+#|    if not names:
+#|        raise re.error("no port role named after 'role:'")
+#|    return names
+#|
+#|
 #|def role_regex(text):
-#|    role = text.strip()[5:].strip().lower()
-#|    if role != "any" and role not in PORT_ROLES:
-#|        raise re.error(f"unknown port role '{role}' (use uplink, downlink, access or any)")
-#|    return re.compile(r"^\s*description\s+(" + "|".join(re.escape(w) for w in role_words(role)) + r")\b", re.I)
+#|    words = [w for name in role_names(text) for w in role_words(name)]
+#|    return re.compile(r"^\s*description\s+(" + "|".join(re.escape(w) for w in words) + r")\b", re.I)
 #|
 #|
 #|def describe_filter(text):
 #|    if is_role(text):
-#|        role = text.strip()[5:].strip().lower()
-#|        return f"the {role} port role (description starting {' / '.join(role_words(role))})"
+#|        names = role_names(text)
+#|        words = [w for name in names for w in role_words(name)]
+#|        return (f"the {' / '.join(names)} port role{'s' if len(names) > 1 else ''} "
+#|                f"(description starting {' / '.join(words)})")
 #|    return _quote(text)
+#|
+#|
+#|def filter_lines(text):
+#|    """only / exclude hold one filter per line: a section must match EVERY 'only' line and is skipped when it
+#|    matches ANY 'exclude' line."""
+#|    return [t.strip() for t in (text or "").split("\n") if t.strip()]
+#|
+#|
+#|SHUT_FILTER = "re:^\\s*shutdown\\s*$"
+#|_SHUT_FILTERS = {"shutdown", SHUT_FILTER}
+#|
+#|
+#|def split_port_filters(only, exclude):
+#|    """Pull the port-role and 'skip shut ports' filters out of only / exclude, for the condition editor's
+#|    'Which ports' controls. Returns {mode: 'all' | 'only' | 'except', roles: [...], skip_shut, only, exclude}
+#|    where only / exclude keep the remaining filter lines."""
+#|    only_lines, exclude_lines = filter_lines(only), filter_lines(exclude)
+#|    mode, roles = "all", []
+#|    for name, lines in (("only", only_lines), ("except", exclude_lines)):
+#|        role_line = next((f for f in lines if is_role(f)), None)
+#|        if role_line:
+#|            mode, roles = name, [n.strip().lower() for n in role_line.strip()[5:].split(",") if n.strip()]
+#|            lines.remove(role_line)
+#|            break
+#|    skip_shut = any(f in _SHUT_FILTERS for f in exclude_lines)
+#|    exclude_lines = [f for f in exclude_lines if f not in _SHUT_FILTERS]
+#|    return {"mode": mode, "roles": roles, "skip_shut": skip_shut,
+#|            "only": "\n".join(only_lines), "exclude": "\n".join(exclude_lines)}
+#|
+#|
+#|def join_port_filters(mode, roles, skip_shut, only, exclude):
+#|    """The reverse of split_port_filters: (only, exclude) as stored in the condition."""
+#|    role_line = [f"role:{', '.join(roles)}"] if mode in ("only", "except") and roles else []
+#|    only_lines = (role_line if mode == "only" else []) + filter_lines(only)
+#|    exclude_lines = (role_line if mode == "except" else []) + ([SHUT_FILTER] if skip_shut else []) \
+#|        + filter_lines(exclude)
+#|    return "\n".join(only_lines), "\n".join(exclude_lines)
 #|
 #|
 #|def matcher(text, how, ignore_case=False):
@@ -8582,6 +8819,13 @@ main()
 #|    return f"'{s}'"
 #|
 #|
+#|# Common section patterns, in plain words for describe()
+#|SECTION_NAMES = {
+#|    ("regex", r"^interface (?!AppGig)\S*(Ethernet|GigE)\d"): "front-panel switch port",
+#|    ("regex", r"^interface Ethernet\d"): "Ethernet port",
+#|}
+#|
+#|
 #|def describe(cond):
 #|    """One plain-English sentence for a condition."""
 #|    command, where, tail = describe_parts(cond)
@@ -8593,14 +8837,25 @@ main()
 #|    c = {**NEW_CONDITION, **cond}
 #|    if c["scope"] == "all":
 #|        where = "the output"
+#|    elif (c["section_how"], c["section"]) in SECTION_NAMES:
+#|        where = ("EVERY " if c["scope"] == "every" else "AT LEAST ONE ") + SECTION_NAMES[c["section_how"], c["section"]]
 #|    else:
 #|        where = f"{SCOPES[c['scope']]} {c['section_how']} {_quote(c['section'])}"
-#|        if c.get("only"):
-#|            where += (f" in {describe_filter(c['only'])}" if is_role(c["only"])
-#|                      else f" with a line starting {_quote(c['only'])}")
-#|        if c["exclude"]:
-#|            where += (f" (skipping {describe_filter(c['exclude'])})" if is_role(c["exclude"])
-#|                      else f" (skipping sections with a line starting {_quote(c['exclude'])})")
+#|    if c["scope"] != "all":
+#|        def has_line(f):
+#|            if f in _SHUT_FILTERS:
+#|                return "shut-down ports" if "interface" in c["section"] else "sections that are shut down"
+#|            if f.startswith("re:"):
+#|                return f"sections with a line matching {_quote(f[3:])}"
+#|            return f"sections with a line starting {_quote(f)}"
+#|
+#|        only = [f"in {describe_filter(f)}" if is_role(f) else "that is shut down" if f in _SHUT_FILTERS
+#|                else has_line(f).replace("sections ", "", 1) for f in filter_lines(c.get("only"))]
+#|        if only:
+#|            where += " " + " and ".join(only)
+#|        skip = [describe_filter(f) if is_role(f) else has_line(f) for f in filter_lines(c["exclude"])]
+#|        if skip:
+#|            where += f" (skipping {' or '.join(skip)})"
 #|    check = c["check"]
 #|    what = (f"is a description for {describe_filter(c['text'])}" if is_role(c["text"]) else
 #|            f"{c['how']} {_quote(c['text'])}" + (" (any case)" if c["ignore_case"] else ""))
@@ -8645,9 +8900,8 @@ main()
 #|        matcher(c["text"], how, c["ignore_case"])
 #|        if c["scope"] != "all":
 #|            matcher(c["section"], c["section_how"], c["ignore_case"])
-#|            for f in (c.get("only"), c["exclude"]):
-#|                if f:
-#|                    line_filter(f, c["ignore_case"])
+#|            for f in filter_lines(c.get("only")) + filter_lines(c["exclude"]):
+#|                line_filter(f, c["ignore_case"])
 #|    except re.error as e:
 #|        errs.append(f"pattern error: {e}")
 #|    return errs
@@ -8730,13 +8984,14 @@ main()
 #|        return {"ok": ok, "note": note, "marks": {c["command"]: marks}}
 #|
 #|    header_rx = matcher(c["section"], c["section_how"], c["ignore_case"])
-#|    exclude_rx = line_filter(c["exclude"], c["ignore_case"]) if c["exclude"] else None
-#|    only_rx = line_filter(c["only"], c["ignore_case"]) if c.get("only") else None
+#|    exclude_rxs = [line_filter(f, c["ignore_case"]) for f in filter_lines(c["exclude"])]
+#|    only_rxs = [line_filter(f, c["ignore_case"]) for f in filter_lines(c.get("only"))]
 #|    marks, passed, failed, skipped = [], [], [], 0
 #|    for head, body in find_sections(lines, header_rx):
-#|        if only_rx and not any(only_rx.search(lines[i]) for i in [head] + body):
+#|        unit = [lines[i] for i in [head] + body]
+#|        if not all(any(rx.search(line) for line in unit) for rx in only_rxs):
 #|            continue
-#|        if exclude_rx and any(exclude_rx.search(lines[i]) for i in [head] + body):
+#|        if any(rx.search(line) for rx in exclude_rxs for line in unit):
 #|            marks.append((head, "skipped"))
 #|            skipped += 1
 #|            continue
@@ -8892,7 +9147,7 @@ main()
 #|            errs.append(f"Test '{t.get('name')}' expected {t.get('expected')} but rule gives {actual}.")
 #|    return errs
 #@ END
-#@ FILE src/store.py SHA 705cec739a6f67c732134f02e2ad8f231c12f91d9f36317475c63227c6615842 CHUNK 1 OF 1
+#@ FILE src/store.py SHA 969626c0c338a6461707215b2e4d363f85d9bde23c7d898e334e5d1f0c0e2edd CHUNK 1 OF 1
 #|"""Project folders and data files - built so a team can share them.
 #|
 #|Everything lives in plain JSON under data/:
@@ -9090,7 +9345,7 @@ main()
 #|DEFAULT_PLACEMENT = {"not_a_finding": "comments", "not_applicable": "comments", "open": "finding_details",
 #|                     "not_reviewed": "comments"}
 #|# Interface-description keywords that mark port roles (comma-separated alternatives).
-#|DEFAULT_PORT_ROLES = {"uplink": "UPLINK", "downlink": "DOWNLINK", "access": "ACCESS, UNTRUSTED"}
+#|DEFAULT_PORT_ROLES = {"uplink": "UPLINK", "downlink": "DOWNLINK", "access": "ACCESS, UNTRUSTED", "trusted": "TRUSTED"}
 #|DEFAULT_SETTINGS = {"output_format": "ckl", "manual_controls": [], "device_overrides": {}, "known_devices": {},
 #|                    "text_placement": DEFAULT_PLACEMENT, "port_roles": DEFAULT_PORT_ROLES, "site_values": {}}
 #|
@@ -10449,7 +10704,7 @@ main()
 #|if __name__ == "__main__":
 #|    unittest.main()
 #@ END
-#@ FILE tests/test_drafts.py SHA f4183f61ab7095f8aae70b9479b4fd906ecc4d202fe527e462201c542e8e6479 CHUNK 1 OF 1
+#@ FILE tests/test_drafts.py SHA 5f76ada15951c7df445cea793b999d0ae70747f72c02c9b80549c45daf9078bc CHUNK 1 OF 1
 #|"""Checks the starter draft library against representative Catalyst 9300 / 8300 and Nexus 9000 output."""
 #|import sys
 #|import unittest
@@ -10567,11 +10822,74 @@ main()
 #|        self.assertIn("interface GigabitEthernet1/0/48\n no ip dhcp snooping trust", text)
 #|        self.assertNotIn("interface GigabitEthernet1/0/48\n ip dhcp snooping trust", text)
 #|
+#|    def test_dot1x_or_parked_unless_trusted(self):
+#|        spec = drafts.LIBRARY["IOSXE_SW"]["CISC-L2-000020"]
+#|        rule = drafts.build_rule(spec, "IOSXE_SW", "X", {"vuln_id": "V-1", "rule_ver": "CISC-L2-000020",
+#|                                                        "check_hash": ""})
+#|        good = ("dot1x system-auth-control\n"
+#|                "interface GigabitEthernet1/0/1\n description ACCESS - RM 101\n switchport mode access\n"
+#|                " authentication port-control auto\n dot1x pae authenticator\n!\n"
+#|                "interface GigabitEthernet1/0/2\n description TRUSTED - ANALOG GW RM 112\n switchport mode access\n!\n"
+#|                "interface GigabitEthernet1/0/3\n switchport access vlan 2\n shutdown\n!\n"
+#|                "interface GigabitEthernet1/0/4\n shutdown\n dot1x pae authenticator\n!\n"
+#|                "interface TenGigabitEthernet1/1/1\n description UPLINK - DIST\n switchport mode trunk\n")
+#|
+#|        def status(cfg):
+#|            res = rules.evaluate(rule, {"show running-config": {"status": "ok", "text": cfg}})
+#|            return res["status"], res["failed_sections"]
+#|
+#|        self.assertEqual(status(good), ("not_a_finding", []))
+#|        # unlabelled live port without 802.1x, shut port outside the parking VLAN, open authentication
+#|        for extra, port in (("interface GigabitEthernet1/0/5\n switchport mode access\n", "GigabitEthernet1/0/5"),
+#|                            ("interface GigabitEthernet1/0/6\n switchport access vlan 10\n shutdown\n",
+#|                             "GigabitEthernet1/0/6"),
+#|                            ("interface GigabitEthernet1/0/7\n description ACCESS - LOBBY\n authentication open\n"
+#|                             " authentication port-control auto\n dot1x pae authenticator\n", "GigabitEthernet1/0/7")):
+#|            got, failed = status(good + "!\n" + extra)
+#|            self.assertEqual(got, "open", port)
+#|            self.assertIn(f"interface {port}", failed)
+#|
+#|
+#|class PortRoleTests(unittest.TestCase):
+#|    def tearDown(self):
+#|        rules.set_port_roles({})
+#|
+#|    def test_custom_roles_and_several_roles_in_one_filter(self):
+#|        rules.set_port_roles({"camera": "CAMERA, CCTV", "Bad Name": "X", "any": "Y"})
+#|        self.assertIn("camera", rules.PORT_ROLES)
+#|        self.assertNotIn("Bad Name", rules.PORT_ROLES)
+#|        self.assertNotIn("any", rules.PORT_ROLES)
+#|        cfg = ("interface Gi1/0/1\n description CCTV - LOT\n!\ninterface Gi1/0/2\n description TRUSTED - GW\n!\n"
+#|               "interface Gi1/0/3\n description ACCESS - PC\n!\ninterface Gi1/0/4\n shutdown\n")
+#|        cond = {"command": "c", "scope": "every", "section": "interface", "if_none": "pass", "check": "has",
+#|                "how": "starts with", "text": "description ACCESS",
+#|                "exclude": "role:camera, trusted\n" + rules.SHUT_FILTER}
+#|        res = rules.eval_condition(cond, {"c": {"status": "ok", "text": cfg}})
+#|        self.assertTrue(res["ok"], res["note"])
+#|        self.assertIn("3 skipped", res["note"])
+#|        self.assertIn("unknown port role", " ".join(rules.condition_problems({**cond, "exclude": "role:nope"})))
+#|
+#|    def test_only_lines_must_all_match(self):
+#|        cfg = "interface A\n shutdown\n description X\n!\ninterface B\n shutdown\n"
+#|        cond = {"command": "c", "scope": "every", "section": "interface", "if_none": "fail", "check": "lacks",
+#|                "how": "starts with", "text": "shutdown", "only": "shutdown\ndescription"}
+#|        res = rules.eval_condition(cond, {"c": {"status": "ok", "text": cfg}})
+#|        self.assertEqual(res["failed_sections"], ["interface A"])
+#|
+#|    def test_editor_split_round_trip(self):
+#|        only, exclude = "re:^\\s*shutdown\\s*$", "role:uplink, trusted\nshutdown\nchannel-group"
+#|        split = rules.split_port_filters(only, exclude)
+#|        self.assertEqual((split["mode"], split["roles"], split["skip_shut"]), ("except", ["uplink", "trusted"], True))
+#|        self.assertEqual(split["exclude"], "channel-group")
+#|        joined = rules.join_port_filters(split["mode"], split["roles"], split["skip_shut"], split["only"],
+#|                                         split["exclude"])
+#|        self.assertEqual(joined, (only, "role:uplink, trusted\n" + rules.SHUT_FILTER + "\nchannel-group"))
+#|
 #|
 #|if __name__ == "__main__":
 #|    unittest.main()
 #@ END
-#@ FILE tests/platform_samples.py SHA 2cf4431390d9477b1cedf08cb8583909181889b1ca2aeb51ef5dc8dd5bc4ad0e CHUNK 1 OF 1
+#@ FILE tests/platform_samples.py SHA 9d1bcaa7e174df3774be8a9029287c2d7d11dad3306395cf6a3b5f866fc2e9ee CHUNK 1 OF 1
 #|"""Representative command output for the target platforms, used to sanity-check the starter drafts.
 #|
 #|Written to match how each platform prints its configuration (lab addresses only):
@@ -10734,7 +11052,7 @@ main()
 #| mode sso
 #|udld aggressive
 #|!
-#|vlan 999
+#|vlan 2
 #| name PARKING
 #|!
 #|class-map match-all VOICE
@@ -10771,9 +11089,15 @@ main()
 #| service-policy output QOS_OUT
 #|!
 #|interface GigabitEthernet1/0/2
-#| switchport access vlan 999
+#| switchport access vlan 2
 #| switchport mode access
 #| shutdown
+#|!
+#|interface GigabitEthernet1/0/3
+#| description TRUSTED - ANALOG GATEWAY RM 112
+#| switchport access vlan 30
+#| switchport mode access
+#| spanning-tree portfast
 #|!
 #|interface TenGigabitEthernet1/1/1
 #| description UPLINK - DIST-SW-01 Te2/0/14
@@ -11134,7 +11458,8 @@ main()
 #|        "show vlan brief": "VLAN Name                             Status    Ports\n---- ---- ----\n"
 #|                           "1    default                          active    \n"
 #|                           "10   USERS                            active    Gi1/0/1\n"
-#|                           "999  PARKING                          active    Gi1/0/2",
+#|                           "2    PARKING                          active    Gi1/0/2\n"
+#|                           "30   ANALOG                           active    Gi1/0/3",
 #|        "show version": "Cisco IOS XE Software, Version 17.09.04a\nCisco IOS Software [Cupertino], Catalyst L3 Switch",
 #|        "show ip interface brief": "Interface              IP-Address      OK? Method Status                Protocol\n"
 #|                                   "Vlan1                  unassigned      YES NVRAM  administratively down down    \n"

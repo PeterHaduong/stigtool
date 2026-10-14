@@ -14,10 +14,12 @@ A condition is a dict:
   section, section_how   how to find section first lines (e.g. starts with "line vty")
   only      only check sections that have a line starting with this (e.g. "ip address")
   exclude   skip sections that have a line starting with this (e.g. "shutdown" - not "no shutdown")
-            (only / exclude: start the text with "re:" to use a regular expression instead)
-            Port roles: "role:uplink", "role:downlink", "role:access" or "role:any" (in only / exclude, or as
-            the text to look for) mean an interface description starting with that role's keyword(s), which
-            are a team setting (default UPLINK / DOWNLINK / ACCESS, UNTRUSTED).
+            (only / exclude: start the text with "re:" to use a regular expression instead; one filter per
+            line - a section must match EVERY only line and is skipped when it matches ANY exclude line)
+            Port roles: "role:uplink", "role:trusted", "role:uplink, downlink" or "role:any" (in only / exclude,
+            or as the text to look for) mean an interface description starting with that role's keyword(s),
+            which are a team setting (default UPLINK / DOWNLINK / ACCESS, UNTRUSTED / TRUSTED, plus any roles
+            the team adds).
   if_none   "fail" or "pass" when no sections are found
   check     has | lacks | number | count | pattern | no_pattern
   text, how, ignore_case   what to look for and how to match it
@@ -76,15 +78,18 @@ def split_lines(text):
 
 
 # Port-role keywords (team setting, see set_port_roles). An interface is in a role when its description starts
-# with one of the role's keywords, e.g. "description UPLINK - DIST-SW-01 Te2/0/14".
-PORT_ROLES = {"uplink": "UPLINK", "downlink": "DOWNLINK", "access": "ACCESS, UNTRUSTED"}
+# with one of the role's keywords, e.g. "description UPLINK - DIST-SW-01 Te2/0/14". The built-in roles are always
+# there; teams can add their own (e.g. "camera": "CAMERA, CCTV").
+PORT_ROLES = {"uplink": "UPLINK", "downlink": "DOWNLINK", "access": "ACCESS, UNTRUSTED", "trusted": "TRUSTED"}
 DEFAULT_PORT_ROLES = dict(PORT_ROLES)
+ROLE_NAME_RE = re.compile(r"^[a-z][a-z0-9_-]*$")
 
 
 def set_port_roles(roles):
     PORT_ROLES.clear()
     PORT_ROLES.update(DEFAULT_PORT_ROLES)
-    PORT_ROLES.update({k: v for k, v in (roles or {}).items() if k in PORT_ROLES and str(v).strip()})
+    PORT_ROLES.update({k: v for k, v in (roles or {}).items()
+                       if ROLE_NAME_RE.match(k) and k != "any" and str(v).strip()})
 
 
 def role_words(role):
@@ -96,18 +101,66 @@ def is_role(text):
     return (text or "").strip().lower().startswith("role:")
 
 
+def role_names(text):
+    """'role:uplink, downlink, trusted' -> ['uplink', 'downlink', 'trusted']."""
+    names = [n.strip().lower() for n in text.strip()[5:].split(",") if n.strip()]
+    for name in names:
+        if name != "any" and name not in PORT_ROLES:
+            raise re.error(f"unknown port role '{name}' (roles: {', '.join(PORT_ROLES)} or any)")
+    if not names:
+        raise re.error("no port role named after 'role:'")
+    return names
+
+
 def role_regex(text):
-    role = text.strip()[5:].strip().lower()
-    if role != "any" and role not in PORT_ROLES:
-        raise re.error(f"unknown port role '{role}' (use uplink, downlink, access or any)")
-    return re.compile(r"^\s*description\s+(" + "|".join(re.escape(w) for w in role_words(role)) + r")\b", re.I)
+    words = [w for name in role_names(text) for w in role_words(name)]
+    return re.compile(r"^\s*description\s+(" + "|".join(re.escape(w) for w in words) + r")\b", re.I)
 
 
 def describe_filter(text):
     if is_role(text):
-        role = text.strip()[5:].strip().lower()
-        return f"the {role} port role (description starting {' / '.join(role_words(role))})"
+        names = role_names(text)
+        words = [w for name in names for w in role_words(name)]
+        return (f"the {' / '.join(names)} port role{'s' if len(names) > 1 else ''} "
+                f"(description starting {' / '.join(words)})")
     return _quote(text)
+
+
+def filter_lines(text):
+    """only / exclude hold one filter per line: a section must match EVERY 'only' line and is skipped when it
+    matches ANY 'exclude' line."""
+    return [t.strip() for t in (text or "").split("\n") if t.strip()]
+
+
+SHUT_FILTER = "re:^\\s*shutdown\\s*$"
+_SHUT_FILTERS = {"shutdown", SHUT_FILTER}
+
+
+def split_port_filters(only, exclude):
+    """Pull the port-role and 'skip shut ports' filters out of only / exclude, for the condition editor's
+    'Which ports' controls. Returns {mode: 'all' | 'only' | 'except', roles: [...], skip_shut, only, exclude}
+    where only / exclude keep the remaining filter lines."""
+    only_lines, exclude_lines = filter_lines(only), filter_lines(exclude)
+    mode, roles = "all", []
+    for name, lines in (("only", only_lines), ("except", exclude_lines)):
+        role_line = next((f for f in lines if is_role(f)), None)
+        if role_line:
+            mode, roles = name, [n.strip().lower() for n in role_line.strip()[5:].split(",") if n.strip()]
+            lines.remove(role_line)
+            break
+    skip_shut = any(f in _SHUT_FILTERS for f in exclude_lines)
+    exclude_lines = [f for f in exclude_lines if f not in _SHUT_FILTERS]
+    return {"mode": mode, "roles": roles, "skip_shut": skip_shut,
+            "only": "\n".join(only_lines), "exclude": "\n".join(exclude_lines)}
+
+
+def join_port_filters(mode, roles, skip_shut, only, exclude):
+    """The reverse of split_port_filters: (only, exclude) as stored in the condition."""
+    role_line = [f"role:{', '.join(roles)}"] if mode in ("only", "except") and roles else []
+    only_lines = (role_line if mode == "only" else []) + filter_lines(only)
+    exclude_lines = (role_line if mode == "except" else []) + ([SHUT_FILTER] if skip_shut else []) \
+        + filter_lines(exclude)
+    return "\n".join(only_lines), "\n".join(exclude_lines)
 
 
 def matcher(text, how, ignore_case=False):
@@ -154,6 +207,13 @@ def _quote(s):
     return f"'{s}'"
 
 
+# Common section patterns, in plain words for describe()
+SECTION_NAMES = {
+    ("regex", r"^interface (?!AppGig)\S*(Ethernet|GigE)\d"): "front-panel switch port",
+    ("regex", r"^interface Ethernet\d"): "Ethernet port",
+}
+
+
 def describe(cond):
     """One plain-English sentence for a condition."""
     command, where, tail = describe_parts(cond)
@@ -165,14 +225,25 @@ def describe_parts(cond):
     c = {**NEW_CONDITION, **cond}
     if c["scope"] == "all":
         where = "the output"
+    elif (c["section_how"], c["section"]) in SECTION_NAMES:
+        where = ("EVERY " if c["scope"] == "every" else "AT LEAST ONE ") + SECTION_NAMES[c["section_how"], c["section"]]
     else:
         where = f"{SCOPES[c['scope']]} {c['section_how']} {_quote(c['section'])}"
-        if c.get("only"):
-            where += (f" in {describe_filter(c['only'])}" if is_role(c["only"])
-                      else f" with a line starting {_quote(c['only'])}")
-        if c["exclude"]:
-            where += (f" (skipping {describe_filter(c['exclude'])})" if is_role(c["exclude"])
-                      else f" (skipping sections with a line starting {_quote(c['exclude'])})")
+    if c["scope"] != "all":
+        def has_line(f):
+            if f in _SHUT_FILTERS:
+                return "shut-down ports" if "interface" in c["section"] else "sections that are shut down"
+            if f.startswith("re:"):
+                return f"sections with a line matching {_quote(f[3:])}"
+            return f"sections with a line starting {_quote(f)}"
+
+        only = [f"in {describe_filter(f)}" if is_role(f) else "that is shut down" if f in _SHUT_FILTERS
+                else has_line(f).replace("sections ", "", 1) for f in filter_lines(c.get("only"))]
+        if only:
+            where += " " + " and ".join(only)
+        skip = [describe_filter(f) if is_role(f) else has_line(f) for f in filter_lines(c["exclude"])]
+        if skip:
+            where += f" (skipping {' or '.join(skip)})"
     check = c["check"]
     what = (f"is a description for {describe_filter(c['text'])}" if is_role(c["text"]) else
             f"{c['how']} {_quote(c['text'])}" + (" (any case)" if c["ignore_case"] else ""))
@@ -217,9 +288,8 @@ def condition_problems(cond, commands=None):
         matcher(c["text"], how, c["ignore_case"])
         if c["scope"] != "all":
             matcher(c["section"], c["section_how"], c["ignore_case"])
-            for f in (c.get("only"), c["exclude"]):
-                if f:
-                    line_filter(f, c["ignore_case"])
+            for f in filter_lines(c.get("only")) + filter_lines(c["exclude"]):
+                line_filter(f, c["ignore_case"])
     except re.error as e:
         errs.append(f"pattern error: {e}")
     return errs
@@ -302,13 +372,14 @@ def eval_condition(cond, outputs):
         return {"ok": ok, "note": note, "marks": {c["command"]: marks}}
 
     header_rx = matcher(c["section"], c["section_how"], c["ignore_case"])
-    exclude_rx = line_filter(c["exclude"], c["ignore_case"]) if c["exclude"] else None
-    only_rx = line_filter(c["only"], c["ignore_case"]) if c.get("only") else None
+    exclude_rxs = [line_filter(f, c["ignore_case"]) for f in filter_lines(c["exclude"])]
+    only_rxs = [line_filter(f, c["ignore_case"]) for f in filter_lines(c.get("only"))]
     marks, passed, failed, skipped = [], [], [], 0
     for head, body in find_sections(lines, header_rx):
-        if only_rx and not any(only_rx.search(lines[i]) for i in [head] + body):
+        unit = [lines[i] for i in [head] + body]
+        if not all(any(rx.search(line) for line in unit) for rx in only_rxs):
             continue
-        if exclude_rx and any(exclude_rx.search(lines[i]) for i in [head] + body):
+        if any(rx.search(line) for rx in exclude_rxs for line in unit):
             marks.append((head, "skipped"))
             skipped += 1
             continue

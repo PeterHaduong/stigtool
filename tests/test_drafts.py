@@ -115,6 +115,69 @@ class HardeningTests(unittest.TestCase):
         self.assertIn("interface GigabitEthernet1/0/48\n no ip dhcp snooping trust", text)
         self.assertNotIn("interface GigabitEthernet1/0/48\n ip dhcp snooping trust", text)
 
+    def test_dot1x_or_parked_unless_trusted(self):
+        spec = drafts.LIBRARY["IOSXE_SW"]["CISC-L2-000020"]
+        rule = drafts.build_rule(spec, "IOSXE_SW", "X", {"vuln_id": "V-1", "rule_ver": "CISC-L2-000020",
+                                                        "check_hash": ""})
+        good = ("dot1x system-auth-control\n"
+                "interface GigabitEthernet1/0/1\n description ACCESS - RM 101\n switchport mode access\n"
+                " authentication port-control auto\n dot1x pae authenticator\n!\n"
+                "interface GigabitEthernet1/0/2\n description TRUSTED - ANALOG GW RM 112\n switchport mode access\n!\n"
+                "interface GigabitEthernet1/0/3\n switchport access vlan 2\n shutdown\n!\n"
+                "interface GigabitEthernet1/0/4\n shutdown\n dot1x pae authenticator\n!\n"
+                "interface TenGigabitEthernet1/1/1\n description UPLINK - DIST\n switchport mode trunk\n")
+
+        def status(cfg):
+            res = rules.evaluate(rule, {"show running-config": {"status": "ok", "text": cfg}})
+            return res["status"], res["failed_sections"]
+
+        self.assertEqual(status(good), ("not_a_finding", []))
+        # unlabelled live port without 802.1x, shut port outside the parking VLAN, open authentication
+        for extra, port in (("interface GigabitEthernet1/0/5\n switchport mode access\n", "GigabitEthernet1/0/5"),
+                            ("interface GigabitEthernet1/0/6\n switchport access vlan 10\n shutdown\n",
+                             "GigabitEthernet1/0/6"),
+                            ("interface GigabitEthernet1/0/7\n description ACCESS - LOBBY\n authentication open\n"
+                             " authentication port-control auto\n dot1x pae authenticator\n", "GigabitEthernet1/0/7")):
+            got, failed = status(good + "!\n" + extra)
+            self.assertEqual(got, "open", port)
+            self.assertIn(f"interface {port}", failed)
+
+
+class PortRoleTests(unittest.TestCase):
+    def tearDown(self):
+        rules.set_port_roles({})
+
+    def test_custom_roles_and_several_roles_in_one_filter(self):
+        rules.set_port_roles({"camera": "CAMERA, CCTV", "Bad Name": "X", "any": "Y"})
+        self.assertIn("camera", rules.PORT_ROLES)
+        self.assertNotIn("Bad Name", rules.PORT_ROLES)
+        self.assertNotIn("any", rules.PORT_ROLES)
+        cfg = ("interface Gi1/0/1\n description CCTV - LOT\n!\ninterface Gi1/0/2\n description TRUSTED - GW\n!\n"
+               "interface Gi1/0/3\n description ACCESS - PC\n!\ninterface Gi1/0/4\n shutdown\n")
+        cond = {"command": "c", "scope": "every", "section": "interface", "if_none": "pass", "check": "has",
+                "how": "starts with", "text": "description ACCESS",
+                "exclude": "role:camera, trusted\n" + rules.SHUT_FILTER}
+        res = rules.eval_condition(cond, {"c": {"status": "ok", "text": cfg}})
+        self.assertTrue(res["ok"], res["note"])
+        self.assertIn("3 skipped", res["note"])
+        self.assertIn("unknown port role", " ".join(rules.condition_problems({**cond, "exclude": "role:nope"})))
+
+    def test_only_lines_must_all_match(self):
+        cfg = "interface A\n shutdown\n description X\n!\ninterface B\n shutdown\n"
+        cond = {"command": "c", "scope": "every", "section": "interface", "if_none": "fail", "check": "lacks",
+                "how": "starts with", "text": "shutdown", "only": "shutdown\ndescription"}
+        res = rules.eval_condition(cond, {"c": {"status": "ok", "text": cfg}})
+        self.assertEqual(res["failed_sections"], ["interface A"])
+
+    def test_editor_split_round_trip(self):
+        only, exclude = "re:^\\s*shutdown\\s*$", "role:uplink, trusted\nshutdown\nchannel-group"
+        split = rules.split_port_filters(only, exclude)
+        self.assertEqual((split["mode"], split["roles"], split["skip_shut"]), ("except", ["uplink", "trusted"], True))
+        self.assertEqual(split["exclude"], "channel-group")
+        joined = rules.join_port_filters(split["mode"], split["roles"], split["skip_shut"], split["only"],
+                                         split["exclude"])
+        self.assertEqual(joined, (only, "role:uplink, trusted\n" + rules.SHUT_FILTER + "\nchannel-group"))
+
 
 if __name__ == "__main__":
     unittest.main()
