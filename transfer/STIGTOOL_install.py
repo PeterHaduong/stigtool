@@ -1,4 +1,4 @@
-"""STIGTOOL installer - part 1 of 1 (bundle 74ad0691).
+"""STIGTOOL installer - part 1 of 1 (bundle f23137ee).
 
 HOW TO USE: save this text as a .py file and run it:   python <this file>
   - Run every part of the bundle (1 in total), in any order.
@@ -36,7 +36,7 @@ def main():
             current, buf = (f[2], f[4], int(f[6]), int(f[8])), []
         elif line.startswith("#@ END") and current:
             path, sha, i, n = current
-            (stash / f"74ad0691_{path.replace('/', '__')}.{i}").write_text("\n".join(buf) + "\n", encoding="utf-8")
+            (stash / f"f23137ee_{path.replace('/', '__')}.{i}").write_text("\n".join(buf) + "\n", encoding="utf-8")
             files[path] = (sha, n)
             current = None
         elif current is not None and line.startswith("#|"):
@@ -45,7 +45,7 @@ def main():
         sys.exit("Nothing found to install - was the whole file pasted?")
     waiting, bad = 0, 0
     for path, (sha, n) in sorted(files.items()):
-        pieces = [stash / f"74ad0691_{path.replace('/', '__')}.{i}" for i in range(1, n + 1)]
+        pieces = [stash / f"f23137ee_{path.replace('/', '__')}.{i}" for i in range(1, n + 1)]
         if not all(p.exists() for p in pieces):
             have = sum(p.exists() for p in pieces)
             print(f"  waiting  {path}  ({have} of {n} pieces - run the other part(s))")
@@ -93,7 +93,7 @@ main()
 #@ HAS src/checklist.py 205b37b3d87a31835d67152c9f5d995c86fb36f4c06c5f5f1f61d106baa53e13
 #@ HAS src/collect.py 60df480238255a693ab3481021c573e05be7cb1c45d734f66c542f9bcdaa8b6f
 #@ HAS src/drafts.py b8332a22c0b360677ae96d62166ffc45a0520f887e604cbc4bd827a68c3f672b
-#@ HAS src/gui.py a21660d80bbc9eccd38592149d5e125377078f5a5a9212ed06072cb9c23337da
+#@ HAS src/gui.py 01e09983e4265ffcbd8f094f65c15463c1d6eb545c7304ab017e5fa6357a57e1
 #@ HAS src/llm_handoff.py ce332932a5c4976610ce428576776a2063a49b218c93b228d9aa7fcce6264536
 #@ HAS src/harden.py 4355733216754660dbbdae4db8e3b9d89af6c6f6294b7b5edb3b340db9615071
 #@ HAS src/rules.py 6bb7a1e8f3301c94180d1fe3e77083558687c4f28589e6f121741333ebba921f
@@ -2849,7 +2849,7 @@ main()
 #|        lines += [f"  {stig} {vid} ({ver}) {title[:80]}" for stig, vid, ver, title, _ in report["no_entry"]]
 #|    return "\n".join(lines)
 #@ END
-#@ FILE src/gui.py SHA a21660d80bbc9eccd38592149d5e125377078f5a5a9212ed06072cb9c23337da CHUNK 1 OF 1
+#@ FILE src/gui.py SHA 01e09983e4265ffcbd8f094f65c15463c1d6eb545c7304ab017e5fa6357a57e1 CHUNK 1 OF 1
 #|"""Tkinter user interface, in two modes (switch at the top):
 #|
 #|  Run an assessment   Assessment (collect -> import -> review -> write checklists), Hardening scripts
@@ -3087,20 +3087,51 @@ main()
 #|    heading_font = tkfont.nametofont("TkHeadingFont")
 #|    # widths are given for a 96-dpi screen; grow them with the text on a scaled (high-dpi) one
 #|    scale = max(1.0, float(tree.tk.call("tk", "scaling")) / (96 / 72))
+#|    design = []  # (column, width, stretch) as laid out for a roomy window
 #|    if tree_column:
 #|        tree.heading("#0", text=tree_column[0], anchor="w")
-#|        tree.column("#0", width=int(tree_column[1] * scale), stretch=False)
+#|        design.append(("#0", int(tree_column[1] * scale), False))
 #|    for cid, heading, width in columns:
 #|        tree.heading(cid, text=heading)
 #|        stretch = width >= 200  # the wide, wordy columns take any spare room
 #|        width = max(int(width * scale), heading_font.measure(heading) + 24)  # never narrower than its heading
-#|        tree.column(cid, width=width, stretch=stretch, anchor="w")
+#|        tree.column(cid, anchor="w")
+#|        design.append((cid, width, stretch))
+#|    for cid, width, stretch in design:
+#|        tree.column(cid, width=width, stretch=stretch, minwidth=30)
+#|    fit_columns(tree, design)
 #|    sb = ttk.Scrollbar(frame, orient="vertical", command=tree.yview)
 #|    tree.configure(yscrollcommand=sb.set)
 #|    tree.pack(side="left", fill="both", expand=True)
 #|    sb.pack(side="right", fill="y")
 #|    enable_sorting(tree)
 #|    return frame, tree
+#|
+#|
+#|def fit_columns(tree, design):
+#|    """In a list narrower than its design (a small or half-screen window), shrink every column in proportion so
+#|    none of them disappears off the right edge; with room enough, go back to the designed widths."""
+#|    state = {"job": None, "width": None}
+#|
+#|    def fit():
+#|        state["job"] = None
+#|        width = tree.winfo_width()
+#|        if width < 50 or width == state["width"]:
+#|            return
+#|        state["width"] = width
+#|        total = sum(w for _, w, _ in design)
+#|        if width >= total:
+#|            for cid, w, stretch in design:
+#|                tree.column(cid, width=w, stretch=stretch)
+#|        else:
+#|            factor = (width - 4) / total
+#|            for cid, w, _ in design:
+#|                tree.column(cid, width=max(30, int(w * factor)), stretch=False)
+#|
+#|    def later(_=None):
+#|        if state["job"] is None:
+#|            state["job"] = tree.after_idle(fit)
+#|    tree.bind("<Configure>", later, add="+")
 #|
 #|
 #|def color_tags(tree, mapping):
@@ -3218,17 +3249,64 @@ main()
 #|            self.canvas.yview_scroll(int(-event.delta / 120) or (-1 if event.delta > 0 else 1), "units")
 #|
 #|
+#|class FlowFrame(ttk.Frame):
+#|    """A row of filters or buttons that wraps onto more lines when the window is too narrow, instead of pushing
+#|    the last ones out of sight. Create the parts with this frame as parent, then add() them in order; to keep a
+#|    label with its box, put both in a small ttk.Frame and add that. Pack the FlowFrame with fill="x"."""
+#|
+#|    def __init__(self, parent, **kw):
+#|        super().__init__(parent, **kw)
+#|        self.items = []
+#|        self.bind("<Configure>", lambda e: self.reflow())
+#|
+#|    def add(self, widget, padx=(0, 8)):
+#|        self.items.append((widget, padx))
+#|        widget.bind("<Configure>", lambda e: self.after_idle(self.reflow), add="+")
+#|        self.reflow()
+#|        return widget
+#|
+#|    def reflow(self):
+#|        width = self.winfo_width()
+#|        if width <= 1:  # not laid out yet: one row at its natural width
+#|            width = sum(w.winfo_reqwidth() + sum(p) for w, p in self.items) or 1
+#|        x = y = row_h = 0
+#|        for w, (left, right) in self.items:
+#|            need = w.winfo_reqwidth() + left + right
+#|            if x and x + need > width:
+#|                x, y, row_h = 0, y + row_h + 2, 0
+#|            w.place(x=x + left, y=y)
+#|            x += need
+#|            row_h = max(row_h, w.winfo_reqheight())
+#|        height = y + row_h
+#|        if int(str(self.cget("height")) or 0) != height:
+#|            self.configure(height=height)
+#|        natural = sum(w.winfo_reqwidth() + sum(p) for w, p in self.items)
+#|        if int(str(self.cget("width")) or 0) != min(natural, 400):
+#|            self.configure(width=min(natural, 400))
+#|
+#|
+#|def labeled(flow, text, make):
+#|    """A label and its box kept together as one part of a FlowFrame. make(parent) builds the box; returns it."""
+#|    pair = ttk.Frame(flow)
+#|    ttk.Label(pair, text=text).pack(side="left")
+#|    box = make(pair)
+#|    box.pack(side="left", padx=(4, 0))
+#|    flow.add(pair, padx=(0, 12))
+#|    return box
+#|
+#|
 #|class PaneKeeper:
 #|    """Keep a PanedWindow's dividers at the same proportions when the window is resized.
 #|
 #|    Tk otherwise takes all of a shrink from the LAST pane, which can squeeze it to nothing. Dragging a divider
 #|    sets the new proportions. shares: each divider's position as a fraction of the whole (0-1).
 #|    first_min: the first pane's smallest size in pixels (or a function giving it), so a share that suits one
-#|    screen does not squeeze the pane to nothing on another (DPI scaling, a shorter window). Capped at 60%.
+#|    screen does not squeeze the pane to nothing on another (DPI scaling, a shorter window). cap: the most of the
+#|    whole that minimum may take (so the other panes keep room in a short window).
 #|    """
 #|
-#|    def __init__(self, paned, shares, first_min=0):
-#|        self.paned, self.shares, self.first_min = paned, list(shares), first_min
+#|    def __init__(self, paned, shares, first_min=0, cap=0.6):
+#|        self.paned, self.shares, self.first_min, self.cap = paned, list(shares), first_min, cap
 #|        paned.bind("<Configure>", lambda e: self.apply(), add="+")
 #|        paned.bind("<ButtonRelease-1>", lambda e: (self.remember(), self.apply()), add="+")
 #|
@@ -3244,7 +3322,7 @@ main()
 #|            pos = int(total * self.shares[i])
 #|            if i == 0 and self.first_min:
 #|                least = self.first_min() if callable(self.first_min) else self.first_min
-#|                pos = max(pos, min(least, int(total * 0.6)))
+#|                pos = max(pos, min(least, int(total * self.cap)))
 #|            self.paned.sashpos(i, pos)
 #|
 #|    def remember(self):
@@ -3308,7 +3386,7 @@ main()
 #|        super().__init__()
 #|        self.title("STIG Group Assessment Tool")
 #|        maximize(self, "1320x840")
-#|        self.minsize(1000, 650)
+#|        self.minsize(760, 560)  # still usable snapped to half of a 1920x1080 screen at 125% scaling
 #|        apply_theme(self)
 #|
 #|        self.run, self.run_mtime = None, None
@@ -3612,10 +3690,13 @@ main()
 #|        self.tree.heading("#0", text="STIG")
 #|        self.tree.column("#0", width=330, stretch=False)
 #|        heading_font = tkfont.nametofont("TkHeadingFont")
+#|        design = [("#0", 330, False)]
 #|        for cid, heading, width in self.COLUMNS:
 #|            self.tree.heading(cid, text=heading)
-#|            self.tree.column(cid, width=max(width, heading_font.measure(heading) + 24), stretch=cid == "note",
-#|                             anchor="w")
+#|            width = max(width, heading_font.measure(heading) + 24)
+#|            self.tree.column(cid, width=width, stretch=cid == "note", anchor="w")
+#|            design.append((cid, width, cid == "note"))
+#|        fit_columns(self.tree, design)
 #|        enable_sorting(self.tree)
 #|        sb = ttk.Scrollbar(frame, orient="vertical", command=self.tree.yview)
 #|        self.tree.configure(yscrollcommand=sb.set)
@@ -3995,23 +4076,19 @@ main()
 #|                         "'Manual only' if show output cannot answer it. If the same check is in another STIG, open "
 #|                         "the rule and use 'Use for other checks...' instead of writing it twice. Fix commands are "
 #|                         "reviewed separately, on the Fix commands tab.")
-#|        filt = ttk.Frame(self)
+#|        filt = FlowFrame(self)
 #|        filt.pack(fill="x", padx=6)
-#|        ttk.Label(filt, text="STIG:").pack(side="left")
 #|        self.stig_var = tk.StringVar(value="All")
-#|        self.stig_box = ttk.Combobox(filt, textvariable=self.stig_var, state="readonly", width=50)
-#|        self.stig_box.pack(side="left", padx=4)
-#|        ttk.Label(filt, text="State:").pack(side="left", padx=(10, 0))
+#|        self.stig_box = labeled(filt, "STIG:", lambda p: ttk.Combobox(p, textvariable=self.stig_var,
+#|                                                                      state="readonly", width=44))
 #|        self.state_var = tk.StringVar(value="All")
-#|        ttk.Combobox(filt, textvariable=self.state_var, values=self.STATES, state="readonly",
-#|                     width=22).pack(side="left", padx=4)
-#|        ttk.Label(filt, text="Severity:").pack(side="left", padx=(10, 0))
+#|        labeled(filt, "State:", lambda p: ttk.Combobox(p, textvariable=self.state_var, values=self.STATES,
+#|                                                       state="readonly", width=22))
 #|        self.sev_var = tk.StringVar(value="All")
-#|        ttk.Combobox(filt, textvariable=self.sev_var, values=["All"] + list(SEVERITY_LABELS.values()),
-#|                     state="readonly", width=16).pack(side="left", padx=4)
-#|        ttk.Label(filt, text="Search:").pack(side="left", padx=(10, 0))
+#|        labeled(filt, "Severity:", lambda p: ttk.Combobox(p, textvariable=self.sev_var, state="readonly", width=16,
+#|                                                          values=["All"] + list(SEVERITY_LABELS.values())))
 #|        self.search_var = tk.StringVar()
-#|        ttk.Entry(filt, textvariable=self.search_var, width=24).pack(side="left", padx=4)
+#|        labeled(filt, "Search:", lambda p: ttk.Entry(p, textvariable=self.search_var, width=24))
 #|        for var in (self.stig_var, self.state_var, self.sev_var, self.search_var):
 #|            var.trace_add("write", lambda *a: self.refresh())
 #|        prow = ttk.Frame(self)
@@ -4053,16 +4130,16 @@ main()
 #|                                               ("by", "Last saved by", 150)], height=5)
 #|        rf.pack(side="bottom", fill="x", before=rules_label)
 #|        self.rule_tree.bind("<Double-1>", lambda e: self.edit_rule())
-#|        btns = ttk.Frame(right)
+#|        btns = FlowFrame(right)
 #|        btns.pack(side="bottom", fill="x", pady=(4, 0), before=rf)
 #|        for text, cmd in (("New rule", self.new_rule), ("Edit rule", self.edit_rule),
 #|                          ("Manual only", self.toggle_manual)):
-#|            ttk.Button(btns, text=text, command=cmd,
-#|                       style="Accent.TButton" if text == "New rule" else "TButton").pack(side="left", padx=2)
+#|            btns.add(ttk.Button(btns, text=text, command=cmd,
+#|                                style="Accent.TButton" if text == "New rule" else "TButton"), padx=(2, 2))
 #|        rarely = [("Add a version for some device groups...", self.copy_rule),
 #|                  ("Make this the default version (all other groups)", self.make_default), None,
 #|                  ("Retire this rule", self.retire_rule), ("Delete this draft", self.delete_rule)]
-#|        more_button(btns, rarely, "More...").pack(side="left", padx=2)
+#|        btns.add(more_button(btns, rarely, "More..."), padx=(2, 2))
 #|        right_click_menu(self.rule_tree, [("Edit rule", self.edit_rule), None] + rarely)
 #|        self.stig_map = {}
 #|
@@ -4939,8 +5016,11 @@ main()
 #|        self.share_label.pack(side="left", fill="x", expand=True, padx=8)
 #|        self.show_shared()
 #|        self.show_stig_var = tk.BooleanVar(value=True)
-#|        ttk.Checkbutton(top, text="Show the STIG requirement on the left", variable=self.show_stig_var,
-#|                        command=self.toggle_stig).pack(anchor="e")
+#|        self.stig_check = ttk.Checkbutton(top, text="Show the STIG requirement on the left",
+#|                                          variable=self.show_stig_var, command=self.toggle_stig)
+#|        self.stig_check.pack(anchor="e")
+#|        self._auto_hid = False
+#|        self.bind("<Configure>", lambda e: self.after_idle(self.fit_width) if e.widget is self else None, add="+")
 #|        if harden.has_fix(self.r):
 #|            fit_text(ttk.Label(top, foreground="#555",
 #|                      text=f"Fix commands: {harden.FIX_STATUS[harden.fix_status(self.r)].lower()} (edited and "
@@ -5050,14 +5130,38 @@ main()
 #|        self.stig_text, self._hit = t, -1
 #|
 #|    def _place_sashes(self):
-#|        if self.show_stig_var.get():
+#|        if self.show_stig_var.get() and str(self.stig_pane) in self.paned.panes():
 #|            self.pane_keeper.set([0.30, 0.64])
 #|        else:
 #|            if str(self.stig_pane) in self.paned.panes():
 #|                self.paned.forget(self.stig_pane)
 #|            self.pane_keeper.set([0.5])
 #|
+#|    NARROW = 1150  # below this width the three columns are too cramped: hide the STIG text column
+#|
+#|    def fit_width(self):
+#|        """Hide the STIG requirement column while the window is narrow (half a screen, a small laptop), and bring
+#|        it back when there is room. The person's own choice (the checkbox) is not changed."""
+#|        if not self.winfo_exists():
+#|            return
+#|        narrow = self.winfo_width() < self.NARROW
+#|        shown = str(self.stig_pane) in self.paned.panes()
+#|        if narrow and shown and not self._auto_hid:
+#|            self._auto_hid = True
+#|            self.paned.forget(self.stig_pane)
+#|            self.pane_keeper.set([0.5])
+#|            self.stig_check.configure(text="Show the STIG requirement on the left (hidden: window too narrow)")
+#|        elif not narrow and self._auto_hid:
+#|            self._auto_hid = False
+#|            self.stig_check.configure(text="Show the STIG requirement on the left")
+#|            if self.show_stig_var.get() and not shown:
+#|                self.paned.insert(0, self.stig_pane, weight=1)
+#|                self.after(50, self._place_sashes)
+#|
 #|    def toggle_stig(self):
+#|        if self._auto_hid:  # ticked by hand while the window is narrow: show it anyway
+#|            self._auto_hid = False
+#|            self.stig_check.configure(text="Show the STIG requirement on the left")
 #|        show = self.show_stig_var.get()
 #|        store.save_my_view({"editor_stig_text": show})
 #|        if show and str(self.stig_pane) not in self.paned.panes():
@@ -7235,25 +7339,22 @@ main()
 #|                         "works, not that its fix is right, so fixes are reviewed here, separately. Only REVIEWED "
 #|                         "fixes go into hardening scripts. If someone later changes a rule's commands or conditions, "
 #|                         "its fix comes back here as 'Rule changed - re-check'.")
-#|        filt = ttk.Frame(self)
+#|        filt = FlowFrame(self)
 #|        filt.pack(fill="x", padx=6)
-#|        ttk.Label(filt, text="STIG:").pack(side="left")
 #|        self.stig_var = tk.StringVar(value="All")
-#|        self.stig_box = ttk.Combobox(filt, textvariable=self.stig_var, state="readonly", width=32)
-#|        self.stig_box.pack(side="left", padx=4)
-#|        ttk.Label(filt, text="Show:").pack(side="left", padx=(10, 0))
+#|        self.stig_box = labeled(filt, "STIG:", lambda p: ttk.Combobox(p, textvariable=self.stig_var,
+#|                                                                      state="readonly", width=32))
 #|        self.show_var = tk.StringVar(value=self.SHOW[0])
-#|        ttk.Combobox(filt, textvariable=self.show_var, values=self.SHOW, state="readonly",
-#|                     width=22).pack(side="left", padx=4)
-#|        ttk.Label(filt, text="Search:").pack(side="left", padx=(10, 0))
+#|        labeled(filt, "Show:", lambda p: ttk.Combobox(p, textvariable=self.show_var, values=self.SHOW,
+#|                                                      state="readonly", width=22))
 #|        self.search_var = tk.StringVar()
-#|        ttk.Entry(filt, textvariable=self.search_var, width=24).pack(side="left", padx=4)
+#|        labeled(filt, "Search:", lambda p: ttk.Entry(p, textvariable=self.search_var, width=24))
 #|        for var in (self.stig_var, self.show_var, self.search_var):
 #|            var.trace_add("write", lambda *a: self.refresh())
 #|        self.used_only = tk.BooleanVar(value=store.load_my_view().get("fixes_used_only", True))
-#|        ttk.Checkbutton(filt, text="Only STIGs groups use", variable=self.used_only,
-#|                        command=lambda: (store.save_my_view({"fixes_used_only": self.used_only.get()}),
-#|                                         self.refresh())).pack(side="left", padx=(10, 0))
+#|        filt.add(ttk.Checkbutton(filt, text="Only STIGs groups use", variable=self.used_only,
+#|                                 command=lambda: (store.save_my_view({"fixes_used_only": self.used_only.get()}),
+#|                                                  self.refresh())))
 #|        self.progress = fit_text(ttk.Label(self, text="", foreground="#333"))
 #|        self.progress.pack(fill="x", padx=8, pady=(4, 0))
 #|
@@ -7517,7 +7618,7 @@ main()
 #|        self.run_paned, self._roomy = paned, None
 #|        dev = ttk.LabelFrame(paned, text=" Devices in this run - check each one is in the right group ")
 #|        # Never smaller than the filter bar, the buttons and 5 device rows, whatever the screen's scaling
-#|        self.run_keeper = PaneKeeper(paned, [0.3], first_min=dev.winfo_reqheight)
+#|        self.run_keeper = PaneKeeper(paned, [0.3], first_min=dev.winfo_reqheight, cap=0.4)
 #|        paned.add(dev, weight=0)  # a few rows (drag the divider for more); the review list gets the room
 #|        fb = ttk.Frame(dev)
 #|        fb.pack(fill="x", pady=(2, 2))
@@ -7561,7 +7662,7 @@ main()
 #|        self.group_box.bind("<<ComboboxSelected>>", lambda e: self.show_results())
 #|        ttk.Label(bar, text="Show:").pack(side="left", padx=(10, 0))
 #|        self.filter_var = tk.StringVar(value=self.FILTERS[1])  # what needs a decision first
-#|        fb = ttk.Combobox(bar, textvariable=self.filter_var, values=self.FILTERS, state="readonly", width=34)
+#|        fb = ttk.Combobox(bar, textvariable=self.filter_var, values=self.FILTERS, state="readonly", width=24)
 #|        fb.pack(side="left", padx=4)
 #|        fb.bind("<<ComboboxSelected>>", lambda e: self.show_results())
 #|        self.count_label = fit_text(ttk.Label(bar, text=""))
@@ -7581,26 +7682,27 @@ main()
 #|        side = ttk.Frame(inner)
 #|        inner.add(side, weight=2)
 #|        PaneKeeper(inner, [0.6])
+#|        act = ttk.Frame(side)  # packed first at the bottom: a short window shrinks the details, never these
+#|        act.pack(side="bottom", fill="x", pady=4)
 #|        self.detail = ScrolledText(side, height=14, wrap="word", font=MONO)
 #|        self.detail.pack(fill="both", expand=True)
-#|        act = ttk.Frame(side)
-#|        act.pack(fill="x", pady=4)
 #|        ttk.Label(act, text="Final result:").grid(row=0, column=0, sticky="w")
 #|        self.final_var = tk.StringVar()
 #|        ttk.Combobox(act, textvariable=self.final_var, state="readonly", width=26,
 #|                     values=[STATUS_LABELS[s] for s in STATUSES] + [assess.NOT_AUTOMATED]).grid(row=0, column=1,
 #|                                                                                            sticky="w")
 #|        ttk.Label(act, text="Reviewer comment:").grid(row=1, column=0, sticky="nw")
-#|        self.comment = tk.Text(act, height=3, width=48, wrap="word", font=("Segoe UI", 10))
+#|        self.comment = tk.Text(act, height=3, width=30, wrap="word", font=("Segoe UI", 10))
 #|        self.comment.grid(row=1, column=1, sticky="we")
 #|        self.unapplied = ttk.Label(act, text="", foreground="#b00020")
 #|        self.unapplied.grid(row=3, column=1, sticky="w")
-#|        ab = ttk.Frame(act)
-#|        ab.grid(row=2, column=1, sticky="w", pady=4)
-#|        ttk.Button(ab, text="Apply to selected (Ctrl+Enter)", command=self.apply).pack(side="left")
+#|        ab = FlowFrame(act)
+#|        ab.grid(row=2, column=1, sticky="we", pady=4)
+#|        act.columnconfigure(1, weight=1)
+#|        ab.add(ttk.Button(ab, text="Apply (Ctrl+Enter)", command=self.apply), padx=(0, 4))
 #|        for w in (self.comment, self.res_tree):
 #|            w.bind("<Control-Return>", lambda e: (self.apply(), "break")[-1])
-#|        ttk.Button(ab, text="Reset to recommendation", command=self.reset).pack(side="left", padx=4)
+#|        ab.add(ttk.Button(ab, text="Reset to recommendation", command=self.reset), padx=(0, 4))
 #|
 #|        step4 = ttk.LabelFrame(self, text=" 4. Write the checklist ")
 #|        step4.pack(side="bottom", fill="x", padx=6, pady=(0, 6), before=paned)  # never squeezed out
@@ -7778,7 +7880,7 @@ main()
 #|        roomy = ((self.app.run or {}).get("id"), nogroup > 0)
 #|        if roomy != self._roomy:
 #|            self._roomy = roomy
-#|            self.after(100, lambda: self.size_device_list(0.5 if nogroup else 0.3))
+#|            self.after(100, lambda: self.size_device_list(0.42 if nogroup else 0.3))
 #|        self.dev_summary.configure(
 #|            text=(f"{shown} of {total} shown.  " if shown != total else f"{total} devices:  ")
 #|            + f"{total - nogroup} in groups" + (f", {nogroup} NOT in a group" if nogroup else "")
@@ -7910,7 +8012,7 @@ main()
 #|        self.final_var.set(final)
 #|        text_set(self.comment, comment)
 #|        if self.shown in self.pending:
-#|            self.unapplied.configure(text="Changed but not applied yet - click 'Apply to selected' to keep it.")
+#|            self.unapplied.configure(text="Changed but not applied yet - click Apply to keep it.")
 #|
 #|    # -- actions
 #|    def do_import(self):
