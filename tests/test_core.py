@@ -172,6 +172,16 @@ class ChecklistTests(unittest.TestCase):
             checklist.write_patched(CKLB, self.tmp / "x.cklb", {(NDM, "V-0"): {"status": "open"}})
 
 
+class ReviewTests(unittest.TestCase):
+    def test_needs_decision_until_the_reviewer_comments(self):
+        c = {"final": "open", "recommended": "open", "reviewer_comment": ""}
+        self.assertTrue(assess.needs_decision(c))
+        self.assertTrue(assess.needs_decision({**c, "final": "not_reviewed"}))
+        self.assertFalse(assess.needs_decision({**c, "reviewer_comment": "agreed: risk accepted"}))
+        self.assertFalse(assess.needs_decision({**c, "final": "not_a_finding"}))
+        self.assertFalse(assess.needs_decision({**c, "expected_open": True}))
+
+
 class RuleTests(unittest.TestCase):
     def test_has_and_lacks(self):
         out = {"show run": ok(VTY)}
