@@ -45,6 +45,13 @@ def is_expected_open(c, which="final"):
     return c.get(which) == "open" and bool(c.get("expected_open"))
 
 
+def needs_decision(c):
+    """Open / Not Reviewed that nobody has looked at yet. Applying a result with a reviewer comment (the same
+    result to confirm it, or a different one) counts as the reviewer's decision."""
+    return (c.get("final") in ("open", "not_reviewed") and not is_expected_open(c)
+            and not (c.get("reviewer_comment") or "").strip())
+
+
 def result_label(c, which="final"):
     """Like label(), but shows intentional findings as 'Open (expected)'."""
     return "Open (expected)" if is_expected_open(c, which) else label(c.get(which))

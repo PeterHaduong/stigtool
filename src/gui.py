@@ -232,13 +232,16 @@ def make_tree(parent, columns, height=10, selectmode="browse", tree_column=None)
     tree = ttk.Treeview(frame, columns=[c[0] for c in columns], show="tree headings" if tree_column else "headings",
                         height=height, selectmode=selectmode)
     heading_font = tkfont.nametofont("TkHeadingFont")
+    # widths are given for a 96-dpi screen; grow them with the text on a scaled (high-dpi) one
+    scale = max(1.0, float(tree.tk.call("tk", "scaling")) / (96 / 72))
     if tree_column:
         tree.heading("#0", text=tree_column[0], anchor="w")
-        tree.column("#0", width=tree_column[1], stretch=False)
+        tree.column("#0", width=int(tree_column[1] * scale), stretch=False)
     for cid, heading, width in columns:
         tree.heading(cid, text=heading)
-        width = max(width, heading_font.measure(heading) + 24)  # a column is never narrower than its heading
-        tree.column(cid, width=width, stretch=width >= 200, anchor="w")
+        stretch = width >= 200  # the wide, wordy columns take any spare room
+        width = max(int(width * scale), heading_font.measure(heading) + 24)  # never narrower than its heading
+        tree.column(cid, width=width, stretch=stretch, anchor="w")
     sb = ttk.Scrollbar(frame, orient="vertical", command=tree.yview)
     tree.configure(yscrollcommand=sb.set)
     tree.pack(side="left", fill="both", expand=True)
@@ -919,9 +922,10 @@ QUICK_START = [
                        "Script', run it, and save the output as a text file."),
         ("2  Import", "Click 'Import SolarWinds output...'. Check every device landed in the right group: Show 'Not "
                       "in a group yet', select them, 'Change group of selected devices'."),
-        ("3  Review", "The list opens on what needs your decision. To change a result: pick the new result, type "
-                      "why, click Apply (Ctrl+Enter). 'Not automated' checks are not checked by the tool - assess "
-                      "them in STIG Viewer after writing, or set them here."),
+        ("3  Review", "The list opens on what needs your decision (Open / Not Reviewed nobody has looked at). For "
+                      "each one, type why in Reviewer comment and click Apply (Ctrl+Enter) - to agree, keep the "
+                      "result; to change it, pick another first. 'Not automated' checks are not checked by the "
+                      "tool - assess them in STIG Viewer after writing, or set them here."),
         ("4  Write", "Type your full name and click 'Write checklist package'. A folder ending in _REVIEW_REQUIRED "
                      "still has Not Reviewed checks in it."),
         ("If a yellow bar says the results may be out of date", "Click 'Re-run now'. Nothing is collected again and "
@@ -1326,8 +1330,10 @@ class QueueTab(ttk.Frame):
                          + "\n\nClick the arrow next to the STIG to see its checks, then select a check.",
                          readonly=True)
             else:
-                text_set(self.details, "Select a check to see its STIG text and its rules." if sel else "",
-                         readonly=True)
+                text_set(self.details, "Select a check to see its STIG text and its rules." if sel else
+                         "Nothing selected.\n\nOn the left, click the arrow next to a STIG (e.g. NDM) to list its "
+                         "checks, then click a check. Its STIG check and fix text appear here, and its rules "
+                         "below.", readonly=True)
             return
         text_set(self.details, f"{self.app.stig_label(stig_id)}\n"
                                f"{c['vuln_id']}  {c['rule_ver']}  [{c['severity']}]\n{c['title']}\n\n"
@@ -2109,6 +2115,7 @@ class RuleEditor(tk.Toplevel):
             self.load_test(self.r["tests"][0])
         self.run_all_tests(quiet=True)
         self.schedule()
+        self._baseline = self.fingerprint()
         self.protocol("WM_DELETE_WINDOW", self.cancel)
 
     def _changed_banner(self, parent):
@@ -2597,13 +2604,24 @@ class RuleEditor(tk.Toplevel):
             return messagebox.showinfo("No devices", "Import a SolarWinds output file (Run an assessment) first, "
                                                      "or paste sample output into the box.", parent=self)
         cmds = self.commands()
-        choices = [f"{d['host']}  ({sum(1 for c in cmds if c in d['outputs'])}/{len(cmds)} commands)"
-                   for d in devices]
+        have = {d["host"]: sum(1 for c in cmds if c in d["outputs"]) for d in devices}
+        not_collected = ("The last SolarWinds import (run {}) has no output for this rule's command(s): {}.\n\n"
+                         "A collection script only includes the commands of ACTIVE rules, so a draft's commands "
+                         "are usually missing. Use Rules > 'Try drafts on real output...' (it copies a script "
+                         "with the drafts' commands), or paste the output into the box by hand.")
+        if not any(have.values()):
+            return messagebox.showinfo("Not collected yet", not_collected.format(run["id"], ", ".join(cmds)),
+                                       parent=self)
+        devices = sorted(devices, key=lambda d: -have[d["host"]])  # devices with the output first
+        choices = [f"{d['host']}  ({have[d['host']]}/{len(cmds)} commands)" for d in devices]
         pick = ask_choice(self, "Load sample", "Load this rule's command output from which device "
                                                f"(run {run['id']})?", choices)
         if not pick:
             return
         device = devices[choices.index(pick)]
+        if not have[device["host"]]:
+            return messagebox.showinfo("Not collected yet", not_collected.format(run["id"], ", ".join(cmds)),
+                                       parent=self)
         for c in cmds:
             if c in device["outputs"]:
                 self.sample[c] = device["outputs"][c]["text"]
@@ -2869,8 +2887,14 @@ class RuleEditor(tk.Toplevel):
         self.release()
         self.destroy()
 
+    def fingerprint(self):
+        """Everything the editor would save, to tell whether anything changed since it opened."""
+        return json.dumps(self.collect(), sort_keys=True, default=str)
+
     def cancel(self):
-        if self.readonly or messagebox.askyesno("Close", "Close without saving changes?", parent=self):
+        unchanged = getattr(self, "_baseline", None) == self.fingerprint() and not self.unmanual
+        if self.readonly or unchanged or messagebox.askyesno("Close", "Close without saving your changes?",
+                                                             parent=self):
             self.close()
 
 
@@ -3210,7 +3234,7 @@ class ConditionDialog(tk.Toplevel):
                                           state="readonly", width=11)
         self.w_section_how.pack(side="left")
         self.w_section = ttk.Entry(sec, textvariable=self.v["section"], width=36)
-        self.w_section.pack(side="left", padx=4)
+        self.w_section.pack(side="left", fill="x", expand=True, padx=4)
         self.w_section_pick = more_button(sec, [(label, lambda s=s, h=h: (self.v["section"].set(s),
                                                                           self.v["section_how"].set(h)))
                                                 for label, s, h in SECTION_PRESETS], "Pick")
@@ -3252,7 +3276,7 @@ class ConditionDialog(tk.Toplevel):
         txt = ttk.Frame(f)
         self.w_how = ttk.Combobox(txt, textvariable=self.v["how"], values=engine.HOWS, state="readonly", width=11)
         self.w_how.pack(side="left")
-        ttk.Entry(txt, textvariable=self.v["text"], width=46).pack(side="left", padx=4)
+        ttk.Entry(txt, textvariable=self.v["text"], width=46).pack(side="left", fill="x", expand=True, padx=4)
         row("   ...text:", txt)
         num = ttk.Frame(f)
         self.w_op = ttk.Combobox(num, textvariable=self.v["op"], values=list(engine.OPS), state="readonly", width=4)
@@ -3774,7 +3798,7 @@ class GroupDialog(tk.Toplevel):
         for host in sorted(db["known_devices"]):
             gid, how = assess.assign_group(host, db)
             mine = any(fnmatch.fnmatch(host, p.upper()) for p in g["patterns"])
-            if gid == g["id"]:
+            if gid and gid == g["id"]:  # (a new group has no name yet; unassigned devices have none either)
                 n += 1
                 self.preview.insert("", "end", iid=host, tags=("hand",) if how == "override" else (),
                                     values=(host, "added by hand" if how == "override" else f"matches {how[8:]}"))
@@ -4493,7 +4517,7 @@ class AssessTab(ttk.Frame):
         self.review_split = inner = ttk.PanedWindow(rev, orient="horizontal")
         inner.pack(fill="both", expand=True, pady=4)
         rf, self.res_tree = make_tree(inner, [("fam", "STIG", 170), ("vuln", "Vuln ID", 75), ("ver", "Rule Ver", 110),
-                                              ("rec", "Recommended", 150), ("final", "Final", 150),
+                                              ("rec", "Recommended", 185), ("final", "Final", 185),
                                               ("devs", "Devices", 220), ("title", "Title", 200)],
                                       height=14, selectmode="extended")
         color_tags(self.res_tree, STATUS_ROW)
@@ -4508,7 +4532,7 @@ class AssessTab(ttk.Frame):
         act.pack(fill="x", pady=4)
         ttk.Label(act, text="Final result:").grid(row=0, column=0, sticky="w")
         self.final_var = tk.StringVar()
-        ttk.Combobox(act, textvariable=self.final_var, state="readonly", width=18,
+        ttk.Combobox(act, textvariable=self.final_var, state="readonly", width=26,
                      values=[STATUS_LABELS[s] for s in STATUSES] + [assess.NOT_AUTOMATED]).grid(row=0, column=1,
                                                                                             sticky="w")
         ttk.Label(act, text="Reviewer comment:").grid(row=1, column=0, sticky="nw")
@@ -4745,12 +4769,12 @@ class AssessTab(ttk.Frame):
         else:
             self.manual_note.pack_forget()
         for key, c in res["controls"].items():
-            if c["final"] in ("open", "not_reviewed") and not assess.is_expected_open(c):
+            if assess.needs_decision(c):
                 need += 1
             final = c["final"]
             shown_as = assess.result_label(c)
             counts[shown_as] = counts.get(shown_as, 0) + 1
-            if f.startswith("Needs") and (final not in ("open", "not_reviewed") or assess.is_expected_open(c)):
+            if f.startswith("Needs") and not assess.needs_decision(c):
                 continue
             if (f in STATUS_LABELS.values() or f == "Open (expected)") and shown_as != f:
                 continue
@@ -4823,6 +4847,9 @@ class AssessTab(ttk.Frame):
                          "final result here.")
         if c["reviewer_changed"] or c.get("reviewer_comment"):
             lines += ["", f"Reviewer: final {assess.label(c['final'])} - {c.get('reviewer_comment', '')}"]
+        elif assess.needs_decision(c):
+            lines += ["", "NEEDS YOUR DECISION. Agree with this result? Leave it as it is, type why in Reviewer "
+                          "comment and click Apply. To change it, pick another Final result, type why and Apply."]
         text_set(self.detail, "\n".join(lines), readonly=True)
         final, comment = self.pending.get(self.shown, (assess.label(c["final"]), c.get("reviewer_comment", "")))
         self.final_var.set(final)
@@ -4935,6 +4962,10 @@ class AssessTab(ttk.Frame):
         if any(final != c["recommended"] for c in sel) and not comment:
             return messagebox.showerror("Reason needed", "You are changing the recommended result. "
                                                          "Type a reviewer comment explaining why.")
+        if not comment and any(final in ("open", "not_reviewed") for c in sel):
+            return messagebox.showerror("Reason needed", "Type a reviewer comment saying why you agree with this "
+                                                         f"{assess.label(final)} result, then Apply. That marks it "
+                                                         "as decided.")
         for c in sel:
             c["final"] = final
             c["reviewer_comment"] = comment

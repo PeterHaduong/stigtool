@@ -95,9 +95,11 @@ The **Assessment** tab is one page with four steps, top to bottom:
    devices, use **Find** and **Show** (*Not in a group yet*, *Collection failed or invalid*, or one group), click
    **Select all shown**, then **Change group of the N selected devices...**. The move is remembered for future runs.
    While devices still need a group, the device list takes half the page.
-3. **Review:** the tool *recommends* a result for each check. The list opens on **Needs your decision** (unexpected
-   Open and Not Reviewed results); choose *Show: Everything* to see all. Change any result; a reviewer comment is
-   required. A change you made but did not **Apply** is kept if you click another result, and the tool warns you
+3. **Review:** the tool *recommends* a result for each check. The list opens on **Needs your decision**: Open and
+   Not Reviewed results nobody has looked at yet. Choose *Show: Everything* to see all of them. For each one, type
+   why in **Reviewer comment** and click **Apply**:
+   - **To agree,** keep the result as it is. It then stops counting as "needs your decision".
+   - **To change it,** pick another result first. Any change needs a reviewer comment. A change you made but did not **Apply** is kept if you click another result, and the tool warns you
    before writing if anything is still not applied. *Not automated (left as is)* means there is no rule for that
    check, so the checklist keeps its current value unless you set one.
 4. **Write:** type your full name in **Reviewer (full name)** (it is written into the checklist and remembered on
