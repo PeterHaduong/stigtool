@@ -97,6 +97,10 @@ A CONDITION is a JSON object with these fields:
 PORT ROLES (this team's interface-description keywords; a port with no matching description has no role):
 {roles}
     role:any        any of the above (any labelled port)
+  RULE: whenever ports are picked by their description and the keyword belongs to a role above (e.g. "ports whose
+  description starts with ACCESS"), use role:NAME - in "only" / "exclude", or as "text" with check has / lacks.
+  NEVER match the description text itself ("description ACCESS", "re:^\\\\s*description\\\\s+ACCESS"): a role can
+  have several keywords (all of them count) and the team can change them.
 """
 
 
@@ -157,8 +161,9 @@ def build_prompt(control, rule, platform, goal="", good="", bad="", samples=None
         "the conditions described below. Your job: write the conditions for the requirement below.",
         "Answer with ONE JSON object in a ```json code block and nothing else outside it, in exactly the "
         "format at the end. Use only the fields and values listed. Prefer simple checks (has / lacks with "
-        "\"starts with\" or \"whole line\") over regexes; use a regex only when it is really needed. Do not "
-        "invent commands the device does not have.",
+        "\"starts with\" or \"whole line\") over regexes; use a regex only when it is really needed. Pick ports "
+        "by PORT ROLE (role:NAME), never by matching description text. Do not invent commands the device does "
+        "not have.",
         reference(),
         "WORKED EXAMPLES (real rules from this tool, in the answer format)\n\n" + _examples(),
         f"THE REQUIREMENT\nPlatform: {platform or 'Cisco'}\n{control.get('vuln_id', '')} {control.get('rule_ver', '')} "
@@ -218,6 +223,51 @@ def _json_text(text):
     return text[start:end + 1]
 
 
+SIMPLE_DESCRIPTION_RE = re.compile(r"^\s*description\s+([\w-]+)[\s-]*$", re.I)
+
+
+def _description_roles(text):
+    """The roles whose keywords a filter / text looks for in an interface description, e.g.
+    'description ACCESS' or 're:^\\s*description\\s+(ACCESS|TRUSTED)' -> ['access', 'trusted']."""
+    if not text or engine.is_role(text) or not re.search(r"description", text, re.I):
+        return []
+    found = []
+    for role in engine.PORT_ROLES:
+        for word in engine.role_words(role):
+            if re.search(r"description\b.{0,40}?(?<![\w-])" + re.escape(word) + r"(?![\w-])", text, re.I):
+                found.append(role)
+                break
+    return found
+
+
+def _use_roles(c, n, where, problems):
+    """Port roles instead of description text: a plain 'description KEYWORD' becomes role:NAME (so every keyword
+    of the role counts, and later keyword changes follow); anything more complicated is flagged."""
+    for key, label in (("only", "only"), ("exclude", "skip")):
+        lines = []
+        for f in engine.filter_lines(c[key]):
+            roles = _description_roles(f)
+            simple = SIMPLE_DESCRIPTION_RE.match(f)
+            if len(roles) == 1 and simple:
+                lines.append(f"role:{roles[0]}")
+                problems.append(f"{where} {n}: '{label}' filter '{f}' changed to role:{roles[0]} (port roles "
+                                f"count every keyword: {', '.join(engine.role_words(roles[0]))}).")
+            else:
+                lines.append(f)
+                if roles:
+                    problems.append(f"{where} {n}: '{label}' filter '{f}' matches description text - use "
+                                    f"role:{', '.join(roles)} instead (Which ports, in the condition editor).")
+        c[key] = "\n".join(lines)
+    roles = _description_roles(c["text"])
+    if roles and c["check"] in ("has", "lacks") and len(roles) == 1 and c["how"] != "regex" \
+            and SIMPLE_DESCRIPTION_RE.match(c["text"]):
+        problems.append(f"{where} {n}: text '{c['text']}' changed to role:{roles[0]}.")
+        c["text"] = f"role:{roles[0]}"
+    elif roles:
+        problems.append(f"{where} {n}: text '{c['text']}' matches description text - consider role:"
+                        f"{', '.join(roles)} instead.")
+
+
 def _condition(raw, n, where, commands, problems):
     if not isinstance(raw, dict):
         problems.append(f"{where} {n}: not an object - left out.")
@@ -234,6 +284,7 @@ def _condition(raw, n, where, commands, problems):
         c[key] = str(c[key] if c[key] is not None else "")
     c["value"] = "" if c["value"] in (None, "") else str(c["value"])
     c["ignore_case"] = bool(c["ignore_case"]) and str(c["ignore_case"]).lower() != "false"
+    _use_roles(c, n, where, problems)
     if c["scope"] not in engine.SCOPES:
         problems.append(f"{where} {n}: unknown scope {c['scope']!r}.")
     if c["if_none"] not in ("pass", "fail"):

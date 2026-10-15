@@ -1,4 +1,4 @@
-"""STIGTOOL installer - part 1 of 1 (bundle d6b7cc35).
+"""STIGTOOL installer - part 1 of 1 (bundle 74ad0691).
 
 HOW TO USE: save this text as a .py file and run it:   python <this file>
   - Run every part of the bundle (1 in total), in any order.
@@ -36,7 +36,7 @@ def main():
             current, buf = (f[2], f[4], int(f[6]), int(f[8])), []
         elif line.startswith("#@ END") and current:
             path, sha, i, n = current
-            (stash / f"d6b7cc35_{path.replace('/', '__')}.{i}").write_text("\n".join(buf) + "\n", encoding="utf-8")
+            (stash / f"74ad0691_{path.replace('/', '__')}.{i}").write_text("\n".join(buf) + "\n", encoding="utf-8")
             files[path] = (sha, n)
             current = None
         elif current is not None and line.startswith("#|"):
@@ -45,7 +45,7 @@ def main():
         sys.exit("Nothing found to install - was the whole file pasted?")
     waiting, bad = 0, 0
     for path, (sha, n) in sorted(files.items()):
-        pieces = [stash / f"d6b7cc35_{path.replace('/', '__')}.{i}" for i in range(1, n + 1)]
+        pieces = [stash / f"74ad0691_{path.replace('/', '__')}.{i}" for i in range(1, n + 1)]
         if not all(p.exists() for p in pieces):
             have = sum(p.exists() for p in pieces)
             print(f"  waiting  {path}  ({have} of {n} pieces - run the other part(s))")
@@ -88,19 +88,19 @@ main()
 
 #@ HAS main.py 8ab08b56d237926575fea933200ff6a3512516dcdb3480265899e9d3a9cd0f94
 #@ HAS make_bundle.py 74e98214676415ff76e57bf888db9d88a10a915583b2175ec28d31568b5d530c
-#@ HAS README.md 4eb9a3bfa1f68c7bec27dda946716d29dcb55cf9036e43430675a9ea1f313583
-#@ HAS src/assess.py 6cae6bff1c899c218625b47a9d5ab2d43901c53e686f23c19065cee9c695a15e
+#@ HAS README.md ba1d79b901786c46dd354c2b605568da7d87c8cfa2e3f3e4e193743419a2ad42
+#@ HAS src/assess.py be71b68a3f4d2557018b7d64fcd8ffabae37a132b1a8208c0f90fa1abe297644
 #@ HAS src/checklist.py 205b37b3d87a31835d67152c9f5d995c86fb36f4c06c5f5f1f61d106baa53e13
 #@ HAS src/collect.py 60df480238255a693ab3481021c573e05be7cb1c45d734f66c542f9bcdaa8b6f
 #@ HAS src/drafts.py b8332a22c0b360677ae96d62166ffc45a0520f887e604cbc4bd827a68c3f672b
-#@ HAS src/gui.py d0374ccec6c33051f6c86559b6a4372ef4e12c5fa9585bee3df3d4cce65d1bd9
-#@ HAS src/llm_handoff.py 0e81346941571a9fac9f0ec16111c7c1a557025afcaa5011c5786f14fe153867
+#@ HAS src/gui.py a21660d80bbc9eccd38592149d5e125377078f5a5a9212ed06072cb9c23337da
+#@ HAS src/llm_handoff.py ce332932a5c4976610ce428576776a2063a49b218c93b228d9aa7fcce6264536
 #@ HAS src/harden.py 4355733216754660dbbdae4db8e3b9d89af6c6f6294b7b5edb3b340db9615071
 #@ HAS src/rules.py 6bb7a1e8f3301c94180d1fe3e77083558687c4f28589e6f121741333ebba921f
 #@ HAS src/store.py 969626c0c338a6461707215b2e4d363f85d9bde23c7d898e334e5d1f0c0e2edd
-#@ HAS tests/test_core.py 7799ea5ed198537a4199dbe645a553f27adb2f76007290cb87ac6774754b012b
+#@ HAS tests/test_core.py 2fb972f1cdb5d4b5539d66f7c6e2a9be79c9f7f83458f2938af6c00da323d8f4
 #@ HAS tests/test_drafts.py 5f76ada15951c7df445cea793b999d0ae70747f72c02c9b80549c45daf9078bc
-#@ HAS tests/test_llm_handoff.py 873b787c934ccd2896341788891772f5a2b8202730247cb1691a27d4083af27a
+#@ HAS tests/test_llm_handoff.py 06f7ade0cbf499402d7521de9afc3005d56c5d5cea7d150f74ffa2bdbbe56b38
 #@ HAS tests/platform_samples.py 9d1bcaa7e174df3774be8a9029287c2d7d11dad3306395cf6a3b5f866fc2e9ee
 #@ HAS rules/stigtool_rules.json 5a309ccf4a5781d11ba69a023f9825c882d29e77124d4dbb2cb99562ff3a55e5
 #@ FILE main.py SHA 8ab08b56d237926575fea933200ff6a3512516dcdb3480265899e9d3a9cd0f94 CHUNK 1 OF 1
@@ -334,7 +334,7 @@ main()
 #|if __name__ == "__main__":
 #|    build(int(sys.argv[1]) if len(sys.argv) > 1 else None)
 #@ END
-#@ FILE README.md SHA 4eb9a3bfa1f68c7bec27dda946716d29dcb55cf9036e43430675a9ea1f313583 CHUNK 1 OF 1
+#@ FILE README.md SHA ba1d79b901786c46dd354c2b605568da7d87c8cfa2e3f3e4e193743419a2ad42 CHUNK 1 OF 1
 #|# STIG Group Assessment Tool
 #|
 #|Builds group STIG checklists for network devices from SolarWinds show-command output.
@@ -432,9 +432,11 @@ main()
 #|   devices, use **Find** and **Show** (*Not in a group yet*, *Collection failed or invalid*, or one group), click
 #|   **Select all shown**, then **Change group of the N selected devices...**. The move is remembered for future runs.
 #|   While devices still need a group, the device list takes half the page.
-#|3. **Review:** the tool *recommends* a result for each check. The list opens on **Needs your decision** (unexpected
-#|   Open and Not Reviewed results); choose *Show: Everything* to see all. Change any result; a reviewer comment is
-#|   required. A change you made but did not **Apply** is kept if you click another result, and the tool warns you
+#|3. **Review:** the tool *recommends* a result for each check. The list opens on **Needs your decision**: Open and
+#|   Not Reviewed results nobody has looked at yet. Choose *Show: Everything* to see all of them. For each one, type
+#|   why in **Reviewer comment** and click **Apply**:
+#|   - **To agree,** keep the result as it is. It then stops counting as "needs your decision".
+#|   - **To change it,** pick another result first. Any change needs a reviewer comment. A change you made but did not **Apply** is kept if you click another result, and the tool warns you
 #|   before writing if anything is still not applied. *Not automated (left as is)* means there is no rule for that
 #|   check, so the checklist keeps its current value unless you set one.
 #|4. **Write:** type your full name in **Reviewer (full name)** (it is written into the checklist and remembered on
@@ -752,7 +754,7 @@ main()
 #|
 #|Back up `data/` to keep your rules and groups.
 #@ END
-#@ FILE src/assess.py SHA 6cae6bff1c899c218625b47a9d5ab2d43901c53e686f23c19065cee9c695a15e CHUNK 1 OF 1
+#@ FILE src/assess.py SHA be71b68a3f4d2557018b7d64fcd8ffabae37a132b1a8208c0f90fa1abe297644 CHUNK 1 OF 1
 #|"""Groups, rule selection, assessment runs, and output packages.
 #|
 #|Group record (data/groups.json):
@@ -798,6 +800,13 @@ main()
 #|def is_expected_open(c, which="final"):
 #|    """Open on purpose: the rule says this finding is intentional (e.g. risk acceptance recommended)."""
 #|    return c.get(which) == "open" and bool(c.get("expected_open"))
+#|
+#|
+#|def needs_decision(c):
+#|    """Open / Not Reviewed that nobody has looked at yet. Applying a result with a reviewer comment (the same
+#|    result to confirm it, or a different one) counts as the reviewer's decision."""
+#|    return (c.get("final") in ("open", "not_reviewed") and not is_expected_open(c)
+#|            and not (c.get("reviewer_comment") or "").strip())
 #|
 #|
 #|def result_label(c, which="final"):
@@ -2840,7 +2849,7 @@ main()
 #|        lines += [f"  {stig} {vid} ({ver}) {title[:80]}" for stig, vid, ver, title, _ in report["no_entry"]]
 #|    return "\n".join(lines)
 #@ END
-#@ FILE src/gui.py SHA d0374ccec6c33051f6c86559b6a4372ef4e12c5fa9585bee3df3d4cce65d1bd9 CHUNK 1 OF 1
+#@ FILE src/gui.py SHA a21660d80bbc9eccd38592149d5e125377078f5a5a9212ed06072cb9c23337da CHUNK 1 OF 1
 #|"""Tkinter user interface, in two modes (switch at the top):
 #|
 #|  Run an assessment   Assessment (collect -> import -> review -> write checklists), Hardening scripts
@@ -3076,13 +3085,16 @@ main()
 #|    tree = ttk.Treeview(frame, columns=[c[0] for c in columns], show="tree headings" if tree_column else "headings",
 #|                        height=height, selectmode=selectmode)
 #|    heading_font = tkfont.nametofont("TkHeadingFont")
+#|    # widths are given for a 96-dpi screen; grow them with the text on a scaled (high-dpi) one
+#|    scale = max(1.0, float(tree.tk.call("tk", "scaling")) / (96 / 72))
 #|    if tree_column:
 #|        tree.heading("#0", text=tree_column[0], anchor="w")
-#|        tree.column("#0", width=tree_column[1], stretch=False)
+#|        tree.column("#0", width=int(tree_column[1] * scale), stretch=False)
 #|    for cid, heading, width in columns:
 #|        tree.heading(cid, text=heading)
-#|        width = max(width, heading_font.measure(heading) + 24)  # a column is never narrower than its heading
-#|        tree.column(cid, width=width, stretch=width >= 200, anchor="w")
+#|        stretch = width >= 200  # the wide, wordy columns take any spare room
+#|        width = max(int(width * scale), heading_font.measure(heading) + 24)  # never narrower than its heading
+#|        tree.column(cid, width=width, stretch=stretch, anchor="w")
 #|    sb = ttk.Scrollbar(frame, orient="vertical", command=tree.yview)
 #|    tree.configure(yscrollcommand=sb.set)
 #|    tree.pack(side="left", fill="both", expand=True)
@@ -3763,9 +3775,10 @@ main()
 #|                       "Script', run it, and save the output as a text file."),
 #|        ("2  Import", "Click 'Import SolarWinds output...'. Check every device landed in the right group: Show 'Not "
 #|                      "in a group yet', select them, 'Change group of selected devices'."),
-#|        ("3  Review", "The list opens on what needs your decision. To change a result: pick the new result, type "
-#|                      "why, click Apply (Ctrl+Enter). 'Not automated' checks are not checked by the tool - assess "
-#|                      "them in STIG Viewer after writing, or set them here."),
+#|        ("3  Review", "The list opens on what needs your decision (Open / Not Reviewed nobody has looked at). For "
+#|                      "each one, type why in Reviewer comment and click Apply (Ctrl+Enter) - to agree, keep the "
+#|                      "result; to change it, pick another first. 'Not automated' checks are not checked by the "
+#|                      "tool - assess them in STIG Viewer after writing, or set them here."),
 #|        ("4  Write", "Type your full name and click 'Write checklist package'. A folder ending in _REVIEW_REQUIRED "
 #|                     "still has Not Reviewed checks in it."),
 #|        ("If a yellow bar says the results may be out of date", "Click 'Re-run now'. Nothing is collected again and "
@@ -4170,8 +4183,10 @@ main()
 #|                         + "\n\nClick the arrow next to the STIG to see its checks, then select a check.",
 #|                         readonly=True)
 #|            else:
-#|                text_set(self.details, "Select a check to see its STIG text and its rules." if sel else "",
-#|                         readonly=True)
+#|                text_set(self.details, "Select a check to see its STIG text and its rules." if sel else
+#|                         "Nothing selected.\n\nOn the left, click the arrow next to a STIG (e.g. NDM) to list its "
+#|                         "checks, then click a check. Its STIG check and fix text appear here, and its rules "
+#|                         "below.", readonly=True)
 #|            return
 #|        text_set(self.details, f"{self.app.stig_label(stig_id)}\n"
 #|                               f"{c['vuln_id']}  {c['rule_ver']}  [{c['severity']}]\n{c['title']}\n\n"
@@ -4953,6 +4968,7 @@ main()
 #|            self.load_test(self.r["tests"][0])
 #|        self.run_all_tests(quiet=True)
 #|        self.schedule()
+#|        self._baseline = self.fingerprint()
 #|        self.protocol("WM_DELETE_WINDOW", self.cancel)
 #|
 #|    def _changed_banner(self, parent):
@@ -5448,13 +5464,24 @@ main()
 #|            return messagebox.showinfo("No devices", "Import a SolarWinds output file (Run an assessment) first, "
 #|                                                     "or paste sample output into the box.", parent=self)
 #|        cmds = self.commands()
-#|        choices = [f"{d['host']}  ({sum(1 for c in cmds if c in d['outputs'])}/{len(cmds)} commands)"
-#|                   for d in devices]
+#|        have = {d["host"]: sum(1 for c in cmds if c in d["outputs"]) for d in devices}
+#|        not_collected = ("The last SolarWinds import (run {}) has no output for this rule's command(s): {}.\n\n"
+#|                         "A collection script only includes the commands of ACTIVE rules, so a draft's commands "
+#|                         "are usually missing. Use Rules > 'Try drafts on real output...' (it copies a script "
+#|                         "with the drafts' commands), or paste the output into the box by hand.")
+#|        if not any(have.values()):
+#|            return messagebox.showinfo("Not collected yet", not_collected.format(run["id"], ", ".join(cmds)),
+#|                                       parent=self)
+#|        devices = sorted(devices, key=lambda d: -have[d["host"]])  # devices with the output first
+#|        choices = [f"{d['host']}  ({have[d['host']]}/{len(cmds)} commands)" for d in devices]
 #|        pick = ask_choice(self, "Load sample", "Load this rule's command output from which device "
 #|                                               f"(run {run['id']})?", choices)
 #|        if not pick:
 #|            return
 #|        device = devices[choices.index(pick)]
+#|        if not have[device["host"]]:
+#|            return messagebox.showinfo("Not collected yet", not_collected.format(run["id"], ", ".join(cmds)),
+#|                                       parent=self)
 #|        for c in cmds:
 #|            if c in device["outputs"]:
 #|                self.sample[c] = device["outputs"][c]["text"]
@@ -5720,8 +5747,14 @@ main()
 #|        self.release()
 #|        self.destroy()
 #|
+#|    def fingerprint(self):
+#|        """Everything the editor would save, to tell whether anything changed since it opened."""
+#|        return json.dumps(self.collect(), sort_keys=True, default=str)
+#|
 #|    def cancel(self):
-#|        if self.readonly or messagebox.askyesno("Close", "Close without saving changes?", parent=self):
+#|        unchanged = getattr(self, "_baseline", None) == self.fingerprint() and not self.unmanual
+#|        if self.readonly or unchanged or messagebox.askyesno("Close", "Close without saving your changes?",
+#|                                                             parent=self):
 #|            self.close()
 #|
 #|
@@ -5881,9 +5914,10 @@ main()
 #|                                f"{STATUS_LABELS[test['expected']]}, the rule gives {STATUS_LABELS[actual]}\n",
 #|                         () if ok else ("bad",))
 #|        if problems:
-#|            t.insert("end", "\nProblems (fix them in the AI or in the editor after using it):\n", "head")
-#|            for p in problems:
-#|                t.insert("end", f"  - {p}\n", "bad")
+#|            t.insert("end", "\nChanges made and problems found (fix problems in the AI or in the editor after "
+#|                            "using it):\n", "head")
+#|            for p in problems:  # automatic changes are notes, not errors
+#|                t.insert("end", f"  - {p}\n", () if " changed to role:" in p else ("bad",))
 #|        t.configure(state="disabled")
 #|        self.answer = answer
 #|        self.w_mine.state(["!disabled"] if len(answer["commands"]) == 1 else ["disabled"])
@@ -6255,7 +6289,7 @@ main()
 #|                                          state="readonly", width=11)
 #|        self.w_section_how.pack(side="left")
 #|        self.w_section = ttk.Entry(sec, textvariable=self.v["section"], width=36)
-#|        self.w_section.pack(side="left", padx=4)
+#|        self.w_section.pack(side="left", fill="x", expand=True, padx=4)
 #|        self.w_section_pick = more_button(sec, [(label, lambda s=s, h=h: (self.v["section"].set(s),
 #|                                                                          self.v["section_how"].set(h)))
 #|                                                for label, s, h in SECTION_PRESETS], "Pick")
@@ -6297,7 +6331,7 @@ main()
 #|        txt = ttk.Frame(f)
 #|        self.w_how = ttk.Combobox(txt, textvariable=self.v["how"], values=engine.HOWS, state="readonly", width=11)
 #|        self.w_how.pack(side="left")
-#|        ttk.Entry(txt, textvariable=self.v["text"], width=46).pack(side="left", padx=4)
+#|        ttk.Entry(txt, textvariable=self.v["text"], width=46).pack(side="left", fill="x", expand=True, padx=4)
 #|        row("   ...text:", txt)
 #|        num = ttk.Frame(f)
 #|        self.w_op = ttk.Combobox(num, textvariable=self.v["op"], values=list(engine.OPS), state="readonly", width=4)
@@ -6819,7 +6853,7 @@ main()
 #|        for host in sorted(db["known_devices"]):
 #|            gid, how = assess.assign_group(host, db)
 #|            mine = any(fnmatch.fnmatch(host, p.upper()) for p in g["patterns"])
-#|            if gid == g["id"]:
+#|            if gid and gid == g["id"]:  # (a new group has no name yet; unassigned devices have none either)
 #|                n += 1
 #|                self.preview.insert("", "end", iid=host, tags=("hand",) if how == "override" else (),
 #|                                    values=(host, "added by hand" if how == "override" else f"matches {how[8:]}"))
@@ -7538,7 +7572,7 @@ main()
 #|        self.review_split = inner = ttk.PanedWindow(rev, orient="horizontal")
 #|        inner.pack(fill="both", expand=True, pady=4)
 #|        rf, self.res_tree = make_tree(inner, [("fam", "STIG", 170), ("vuln", "Vuln ID", 75), ("ver", "Rule Ver", 110),
-#|                                              ("rec", "Recommended", 150), ("final", "Final", 150),
+#|                                              ("rec", "Recommended", 185), ("final", "Final", 185),
 #|                                              ("devs", "Devices", 220), ("title", "Title", 200)],
 #|                                      height=14, selectmode="extended")
 #|        color_tags(self.res_tree, STATUS_ROW)
@@ -7553,7 +7587,7 @@ main()
 #|        act.pack(fill="x", pady=4)
 #|        ttk.Label(act, text="Final result:").grid(row=0, column=0, sticky="w")
 #|        self.final_var = tk.StringVar()
-#|        ttk.Combobox(act, textvariable=self.final_var, state="readonly", width=18,
+#|        ttk.Combobox(act, textvariable=self.final_var, state="readonly", width=26,
 #|                     values=[STATUS_LABELS[s] for s in STATUSES] + [assess.NOT_AUTOMATED]).grid(row=0, column=1,
 #|                                                                                            sticky="w")
 #|        ttk.Label(act, text="Reviewer comment:").grid(row=1, column=0, sticky="nw")
@@ -7790,12 +7824,12 @@ main()
 #|        else:
 #|            self.manual_note.pack_forget()
 #|        for key, c in res["controls"].items():
-#|            if c["final"] in ("open", "not_reviewed") and not assess.is_expected_open(c):
+#|            if assess.needs_decision(c):
 #|                need += 1
 #|            final = c["final"]
 #|            shown_as = assess.result_label(c)
 #|            counts[shown_as] = counts.get(shown_as, 0) + 1
-#|            if f.startswith("Needs") and (final not in ("open", "not_reviewed") or assess.is_expected_open(c)):
+#|            if f.startswith("Needs") and not assess.needs_decision(c):
 #|                continue
 #|            if (f in STATUS_LABELS.values() or f == "Open (expected)") and shown_as != f:
 #|                continue
@@ -7868,6 +7902,9 @@ main()
 #|                         "final result here.")
 #|        if c["reviewer_changed"] or c.get("reviewer_comment"):
 #|            lines += ["", f"Reviewer: final {assess.label(c['final'])} - {c.get('reviewer_comment', '')}"]
+#|        elif assess.needs_decision(c):
+#|            lines += ["", "NEEDS YOUR DECISION. Agree with this result? Leave it as it is, type why in Reviewer "
+#|                          "comment and click Apply. To change it, pick another Final result, type why and Apply."]
 #|        text_set(self.detail, "\n".join(lines), readonly=True)
 #|        final, comment = self.pending.get(self.shown, (assess.label(c["final"]), c.get("reviewer_comment", "")))
 #|        self.final_var.set(final)
@@ -7980,6 +8017,10 @@ main()
 #|        if any(final != c["recommended"] for c in sel) and not comment:
 #|            return messagebox.showerror("Reason needed", "You are changing the recommended result. "
 #|                                                         "Type a reviewer comment explaining why.")
+#|        if not comment and any(final in ("open", "not_reviewed") for c in sel):
+#|            return messagebox.showerror("Reason needed", "Type a reviewer comment saying why you agree with this "
+#|                                                         f"{assess.label(final)} result, then Apply. That marks it "
+#|                                                         "as decided.")
 #|        for c in sel:
 #|            c["final"] = final
 #|            c["reviewer_comment"] = comment
@@ -8164,7 +8205,7 @@ main()
 #|        if sel:
 #|            text_set(self.preview, self.paths[sel[0]].read_text(encoding="utf-8"), readonly=True)
 #@ END
-#@ FILE src/llm_handoff.py SHA 0e81346941571a9fac9f0ec16111c7c1a557025afcaa5011c5786f14fe153867 CHUNK 1 OF 1
+#@ FILE src/llm_handoff.py SHA ce332932a5c4976610ce428576776a2063a49b218c93b228d9aa7fcce6264536 CHUNK 1 OF 1
 #|"""Hand a rule to another AI (LLM) to write its conditions, and read its answer back.
 #|
 #|build_prompt() writes one self-contained prompt: what the tool can check (generated from the rule engine, so it
@@ -8264,6 +8305,10 @@ main()
 #|PORT ROLES (this team's interface-description keywords; a port with no matching description has no role):
 #|{roles}
 #|    role:any        any of the above (any labelled port)
+#|  RULE: whenever ports are picked by their description and the keyword belongs to a role above (e.g. "ports whose
+#|  description starts with ACCESS"), use role:NAME - in "only" / "exclude", or as "text" with check has / lacks.
+#|  NEVER match the description text itself ("description ACCESS", "re:^\\\\s*description\\\\s+ACCESS"): a role can
+#|  have several keywords (all of them count) and the team can change them.
 #|"""
 #|
 #|
@@ -8324,8 +8369,9 @@ main()
 #|        "the conditions described below. Your job: write the conditions for the requirement below.",
 #|        "Answer with ONE JSON object in a ```json code block and nothing else outside it, in exactly the "
 #|        "format at the end. Use only the fields and values listed. Prefer simple checks (has / lacks with "
-#|        "\"starts with\" or \"whole line\") over regexes; use a regex only when it is really needed. Do not "
-#|        "invent commands the device does not have.",
+#|        "\"starts with\" or \"whole line\") over regexes; use a regex only when it is really needed. Pick ports "
+#|        "by PORT ROLE (role:NAME), never by matching description text. Do not invent commands the device does "
+#|        "not have.",
 #|        reference(),
 #|        "WORKED EXAMPLES (real rules from this tool, in the answer format)\n\n" + _examples(),
 #|        f"THE REQUIREMENT\nPlatform: {platform or 'Cisco'}\n{control.get('vuln_id', '')} {control.get('rule_ver', '')} "
@@ -8385,6 +8431,51 @@ main()
 #|    return text[start:end + 1]
 #|
 #|
+#|SIMPLE_DESCRIPTION_RE = re.compile(r"^\s*description\s+([\w-]+)[\s-]*$", re.I)
+#|
+#|
+#|def _description_roles(text):
+#|    """The roles whose keywords a filter / text looks for in an interface description, e.g.
+#|    'description ACCESS' or 're:^\\s*description\\s+(ACCESS|TRUSTED)' -> ['access', 'trusted']."""
+#|    if not text or engine.is_role(text) or not re.search(r"description", text, re.I):
+#|        return []
+#|    found = []
+#|    for role in engine.PORT_ROLES:
+#|        for word in engine.role_words(role):
+#|            if re.search(r"description\b.{0,40}?(?<![\w-])" + re.escape(word) + r"(?![\w-])", text, re.I):
+#|                found.append(role)
+#|                break
+#|    return found
+#|
+#|
+#|def _use_roles(c, n, where, problems):
+#|    """Port roles instead of description text: a plain 'description KEYWORD' becomes role:NAME (so every keyword
+#|    of the role counts, and later keyword changes follow); anything more complicated is flagged."""
+#|    for key, label in (("only", "only"), ("exclude", "skip")):
+#|        lines = []
+#|        for f in engine.filter_lines(c[key]):
+#|            roles = _description_roles(f)
+#|            simple = SIMPLE_DESCRIPTION_RE.match(f)
+#|            if len(roles) == 1 and simple:
+#|                lines.append(f"role:{roles[0]}")
+#|                problems.append(f"{where} {n}: '{label}' filter '{f}' changed to role:{roles[0]} (port roles "
+#|                                f"count every keyword: {', '.join(engine.role_words(roles[0]))}).")
+#|            else:
+#|                lines.append(f)
+#|                if roles:
+#|                    problems.append(f"{where} {n}: '{label}' filter '{f}' matches description text - use "
+#|                                    f"role:{', '.join(roles)} instead (Which ports, in the condition editor).")
+#|        c[key] = "\n".join(lines)
+#|    roles = _description_roles(c["text"])
+#|    if roles and c["check"] in ("has", "lacks") and len(roles) == 1 and c["how"] != "regex" \
+#|            and SIMPLE_DESCRIPTION_RE.match(c["text"]):
+#|        problems.append(f"{where} {n}: text '{c['text']}' changed to role:{roles[0]}.")
+#|        c["text"] = f"role:{roles[0]}"
+#|    elif roles:
+#|        problems.append(f"{where} {n}: text '{c['text']}' matches description text - consider role:"
+#|                        f"{', '.join(roles)} instead.")
+#|
+#|
 #|def _condition(raw, n, where, commands, problems):
 #|    if not isinstance(raw, dict):
 #|        problems.append(f"{where} {n}: not an object - left out.")
@@ -8401,6 +8492,7 @@ main()
 #|        c[key] = str(c[key] if c[key] is not None else "")
 #|    c["value"] = "" if c["value"] in (None, "") else str(c["value"])
 #|    c["ignore_case"] = bool(c["ignore_case"]) and str(c["ignore_case"]).lower() != "false"
+#|    _use_roles(c, n, where, problems)
 #|    if c["scope"] not in engine.SCOPES:
 #|        problems.append(f"{where} {n}: unknown scope {c['scope']!r}.")
 #|    if c["if_none"] not in ("pass", "fail"):
@@ -10426,7 +10518,7 @@ main()
 #|        update_settings(change)
 #|        legacy_groups.rename(legacy_groups.with_name(f"groups.json.migrated-{stamp()}"))
 #@ END
-#@ FILE tests/test_core.py SHA 7799ea5ed198537a4199dbe645a553f27adb2f76007290cb87ac6774754b012b CHUNK 1 OF 1
+#@ FILE tests/test_core.py SHA 2fb972f1cdb5d4b5539d66f7c6e2a9be79c9f7f83458f2938af6c00da323d8f4 CHUNK 1 OF 1
 #|"""Core tests. Run from the project root:  python -m unittest discover tests"""
 #|import json
 #|import shutil
@@ -10599,6 +10691,16 @@ main()
 #|    def test_unknown_control_rejected(self):
 #|        with self.assertRaises(checklist.ChecklistError):
 #|            checklist.write_patched(CKLB, self.tmp / "x.cklb", {(NDM, "V-0"): {"status": "open"}})
+#|
+#|
+#|class ReviewTests(unittest.TestCase):
+#|    def test_needs_decision_until_the_reviewer_comments(self):
+#|        c = {"final": "open", "recommended": "open", "reviewer_comment": ""}
+#|        self.assertTrue(assess.needs_decision(c))
+#|        self.assertTrue(assess.needs_decision({**c, "final": "not_reviewed"}))
+#|        self.assertFalse(assess.needs_decision({**c, "reviewer_comment": "agreed: risk accepted"}))
+#|        self.assertFalse(assess.needs_decision({**c, "final": "not_a_finding"}))
+#|        self.assertFalse(assess.needs_decision({**c, "expected_open": True}))
 #|
 #|
 #|class RuleTests(unittest.TestCase):
@@ -11408,7 +11510,7 @@ main()
 #|if __name__ == "__main__":
 #|    unittest.main()
 #@ END
-#@ FILE tests/test_llm_handoff.py SHA 873b787c934ccd2896341788891772f5a2b8202730247cb1691a27d4083af27a CHUNK 1 OF 1
+#@ FILE tests/test_llm_handoff.py SHA 06f7ade0cbf499402d7521de9afc3005d56c5d5cea7d150f74ffa2bdbbe56b38 CHUNK 1 OF 1
 #|"""The AI handoff: the prompt is complete and safe, and answers are read back strictly."""
 #|import json
 #|import re
@@ -11483,6 +11585,25 @@ main()
 #|             "check": "has", "text": "x"}]}))
 #|        self.assertTrue(any("pattern error" in p for p in problems))
 #|        self.assertTrue(any("unknown port role" in p for p in problems))
+#|
+#|    def test_description_text_becomes_a_port_role(self):
+#|        self.assertIn("NEVER match the description text", h.build_prompt(CONTROL, {}, ""))
+#|        answer, problems = h.parse_answer(json.dumps({"commands": ["show run"], "pass_conditions": [
+#|            {"command": "show run", "scope": "every", "section": "interface", "if_none": "pass",
+#|             "only": ["description ACCESS"], "exclude": ["description trusted -", "shutdown"],
+#|             "check": "has", "text": "dot1x pae authenticator"},
+#|            {"command": "show run", "scope": "every", "section": "interface", "if_none": "pass",
+#|             "exclude": ["re:^\\s*description\\s+(UPLINK|DOWNLINK)"], "check": "has", "how": "starts with",
+#|             "text": "description UNTRUSTED"},
+#|            {"command": "show run", "scope": "every", "section": "interface", "if_none": "pass",
+#|             "only": ["description ACCESS - PRINTER"], "check": "has", "text": "x"}]}))
+#|        first, second, third = answer["pass_conditions"]
+#|        self.assertEqual((first["only"], first["exclude"]), ("role:access", "role:trusted\nshutdown"))
+#|        self.assertEqual(second["text"], "role:access")  # UNTRUSTED is an access keyword
+#|        self.assertEqual(second["exclude"], "re:^\\s*description\\s+(UPLINK|DOWNLINK)")  # regex: flagged only
+#|        self.assertTrue(any("role:uplink, downlink instead" in p for p in problems))
+#|        self.assertEqual(third["only"], "description ACCESS - PRINTER")  # more than a keyword: flagged only
+#|        self.assertTrue(any("ACCESS - PRINTER" in p and "role:access" in p for p in problems))
 #|
 #|    def test_rule_round_trip(self):
 #|        rule = {"commands": ["show running-config"], "pass_logic": {"mode": "ALL", "conditions": [

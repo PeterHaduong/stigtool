@@ -3062,9 +3062,10 @@ class AiHandoffDialog(tk.Toplevel):
                                 f"{STATUS_LABELS[test['expected']]}, the rule gives {STATUS_LABELS[actual]}\n",
                          () if ok else ("bad",))
         if problems:
-            t.insert("end", "\nProblems (fix them in the AI or in the editor after using it):\n", "head")
-            for p in problems:
-                t.insert("end", f"  - {p}\n", "bad")
+            t.insert("end", "\nChanges made and problems found (fix problems in the AI or in the editor after "
+                            "using it):\n", "head")
+            for p in problems:  # automatic changes are notes, not errors
+                t.insert("end", f"  - {p}\n", () if " changed to role:" in p else ("bad",))
         t.configure(state="disabled")
         self.answer = answer
         self.w_mine.state(["!disabled"] if len(answer["commands"]) == 1 else ["disabled"])

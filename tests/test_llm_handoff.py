@@ -73,6 +73,25 @@ class AnswerTests(unittest.TestCase):
         self.assertTrue(any("pattern error" in p for p in problems))
         self.assertTrue(any("unknown port role" in p for p in problems))
 
+    def test_description_text_becomes_a_port_role(self):
+        self.assertIn("NEVER match the description text", h.build_prompt(CONTROL, {}, ""))
+        answer, problems = h.parse_answer(json.dumps({"commands": ["show run"], "pass_conditions": [
+            {"command": "show run", "scope": "every", "section": "interface", "if_none": "pass",
+             "only": ["description ACCESS"], "exclude": ["description trusted -", "shutdown"],
+             "check": "has", "text": "dot1x pae authenticator"},
+            {"command": "show run", "scope": "every", "section": "interface", "if_none": "pass",
+             "exclude": ["re:^\\s*description\\s+(UPLINK|DOWNLINK)"], "check": "has", "how": "starts with",
+             "text": "description UNTRUSTED"},
+            {"command": "show run", "scope": "every", "section": "interface", "if_none": "pass",
+             "only": ["description ACCESS - PRINTER"], "check": "has", "text": "x"}]}))
+        first, second, third = answer["pass_conditions"]
+        self.assertEqual((first["only"], first["exclude"]), ("role:access", "role:trusted\nshutdown"))
+        self.assertEqual(second["text"], "role:access")  # UNTRUSTED is an access keyword
+        self.assertEqual(second["exclude"], "re:^\\s*description\\s+(UPLINK|DOWNLINK)")  # regex: flagged only
+        self.assertTrue(any("role:uplink, downlink instead" in p for p in problems))
+        self.assertEqual(third["only"], "description ACCESS - PRINTER")  # more than a keyword: flagged only
+        self.assertTrue(any("ACCESS - PRINTER" in p and "role:access" in p for p in problems))
+
     def test_rule_round_trip(self):
         rule = {"commands": ["show running-config"], "pass_logic": {"mode": "ALL", "conditions": [
             {**rules.NEW_CONDITION, "command": "show running-config", "scope": "every", "section": "interface",
